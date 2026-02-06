@@ -1,0 +1,8 @@
+struct Point size=16 align=8
+  field x offset=0 size=8 align=8
+  field y offset=8 size=8 align=8
+struct Mixed size=32 align=8
+  field b offset=0 size=1 align=1
+  field i offset=8 size=8 align=8
+  field p offset=16 size=8 align=8
+  field f offset=24 size=8 align=8

@@ -1,0 +1,23 @@
+package main
+
+var g *int
+
+type Box struct {
+    ptr *int
+}
+
+func bad_return() *int {
+    var x int
+    return &x // error: *T escapes to return
+}
+
+func bad_global() {
+    var x int
+    g = &x // error: *T escapes to global
+}
+
+func bad_heap_field() {
+    var x int
+    var b ref Box = new(Box)
+    b.ptr = &x // error: *T escapes to heap field
+}

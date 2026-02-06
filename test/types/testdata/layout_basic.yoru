@@ -1,0 +1,13 @@
+package main
+
+type Point struct {
+    x int
+    y int
+}
+
+type Mixed struct {
+    b bool
+    i int
+    p ref Point
+    f float
+}
