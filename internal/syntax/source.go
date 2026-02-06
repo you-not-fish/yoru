@@ -57,12 +57,7 @@ func newSource(filename string, src io.Reader, errh func(line, col uint32, msg s
 // Initial state: line=1, col=0, s.ch=-1
 // After first nextch(): line=1, col=1, s.ch=first char
 func (s *source) nextch() {
-	if s.offs >= len(s.buf) {
-		s.ch = -1
-		return
-	}
-
-	// Update position based on previous character
+	// Update position based on previous character FIRST
 	// Note: s.ch == -1 initially (sentinel), meaning "before first char"
 	if s.ch == '\n' {
 		s.line++
@@ -70,6 +65,12 @@ func (s *source) nextch() {
 	} else {
 		// Always increment col (including from initial col=0 to col=1)
 		s.col++
+	}
+
+	// Then check for EOF
+	if s.offs >= len(s.buf) {
+		s.ch = -1
+		return
 	}
 
 	// Read next rune
