@@ -8,11 +8,14 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
+
+	"github.com/you-not-fish/yoru/internal/syntax"
 )
 
 // Compiler flags
 var (
 	emitTokens   = flag.Bool("emit-tokens", false, "Output token stream")
+	noASI        = flag.Bool("no-asi", false, "Disable automatic semicolon insertion")
 	emitAST      = flag.Bool("emit-ast", false, "Output AST")
 	emitTypedAST = flag.Bool("emit-typed-ast", false, "Output typed AST")
 	emitSSA      = flag.Bool("emit-ssa", false, "Output SSA")
@@ -59,10 +62,103 @@ func main() {
 		os.Exit(1)
 	}
 
-	// TODO: Implement compilation pipeline
+	filename := args[0]
+
+	// Handle -emit-tokens
+	if *emitTokens {
+		os.Exit(runEmitTokens(filename))
+	}
+
+	// TODO: Implement rest of compilation pipeline
 	fmt.Fprintf(os.Stderr, "yoruc: compilation not yet implemented\n")
-	fmt.Fprintf(os.Stderr, "input file: %s\n", args[0])
+	fmt.Fprintf(os.Stderr, "input file: %s\n", filename)
 	os.Exit(1)
+}
+
+// runEmitTokens scans the input file and prints all tokens with positions.
+func runEmitTokens(filename string) int {
+	f, err := os.Open(filename)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		return 1
+	}
+	defer f.Close()
+
+	var errors []string
+	errh := func(line, col uint32, msg string) {
+		errors = append(errors, fmt.Sprintf("%s:%d:%d: %s", filename, line, col, msg))
+	}
+
+	s := syntax.NewScanner(filename, f, errh)
+	if *noASI {
+		s.SetASIEnabled(false)
+	}
+
+	// Print header
+	fmt.Printf("%-20s %-12s %s\n", "POSITION", "TOKEN", "LITERAL")
+	fmt.Printf("%-20s %-12s %s\n", strings.Repeat("-", 20), strings.Repeat("-", 12), strings.Repeat("-", 20))
+
+	for {
+		s.Next()
+		tok := s.Token()
+		pos := s.Pos()
+		lit := s.Literal()
+
+		// Format position
+		posStr := pos.String()
+
+		// Format literal (escape special characters for display)
+		litStr := formatLiteral(lit)
+
+		fmt.Printf("%-20s %-12s %s\n", posStr, tok.String(), litStr)
+
+		if tok.IsEOF() {
+			break
+		}
+	}
+
+	// Print any errors
+	if len(errors) > 0 {
+		fmt.Println()
+		fmt.Println("Errors:")
+		for _, e := range errors {
+			fmt.Printf("  %s\n", e)
+		}
+		return 1
+	}
+
+	return 0
+}
+
+// formatLiteral formats a literal for display, escaping special characters.
+func formatLiteral(lit string) string {
+	if lit == "" {
+		return "\"\""
+	}
+
+	// Show the content with escapes visible for readability
+	var b strings.Builder
+	b.WriteRune('"')
+	for _, r := range lit {
+		switch r {
+		case '\n':
+			b.WriteString("\\n")
+		case '\t':
+			b.WriteString("\\t")
+		case '\r':
+			b.WriteString("\\r")
+		case '\\':
+			b.WriteString("\\\\")
+		case '"':
+			b.WriteString("\\\"")
+		case 0:
+			b.WriteString("\\0")
+		default:
+			b.WriteRune(r)
+		}
+	}
+	b.WriteRune('"')
+	return b.String()
 }
 
 // runDoctor checks the toolchain and returns an exit code.
