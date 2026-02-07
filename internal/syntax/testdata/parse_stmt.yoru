@@ -1,0 +1,30 @@
+package main
+
+func f() int {
+;
+foo()
+x = 1
+x := 2
+var y int
+if x > 0 {
+y = y + 1
+} else if x < 0 {
+y = y - 1
+} else {
+y = 0
+}
+for x < 10 {
+if x == 5 {
+continue
+}
+x = x + 1
+if x == 9 {
+break
+}
+}
+{
+z := y
+_ = z
+}
+return y
+}

@@ -1,0 +1,25 @@
+package main
+
+import "fmt"
+import "os"
+
+type Point struct {
+x int
+y int
+}
+
+type Number = int
+type Ptr = *Point
+type RefPoint = ref Point
+type Matrix = [2][3]int
+
+var g int
+var gp ref Point = new(Point)
+
+func (p Point) Sum() int {
+return p.x + p.y
+}
+
+func add(a int, b int) int {
+return a + b
+}

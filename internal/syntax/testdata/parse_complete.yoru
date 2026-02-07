@@ -1,0 +1,52 @@
+package main
+
+import "fmt"
+
+type Point struct {
+	x int
+	y float
+}
+
+type Number = int
+
+func (p Point) Area() int {
+	return p.x * p.y
+}
+
+func add(a int, b int) int {
+	return a + b
+}
+
+func main() {
+	var p Point
+	p.x = 10
+	p.y = 3.14
+
+	result := add(1, 2)
+
+	var arr [5]int
+	arr[0] = 1
+
+	var r ref Point = new(Point)
+	r.x = 20
+
+	if p.x > 0 {
+		println("positive")
+	} else {
+		println("non-positive")
+	}
+
+	var i int = 0
+	for i < 10 {
+		println(i)
+		i = i + 1
+	}
+
+	println(p.Area())
+
+	var x int = 1 + 2 * 3
+	var b bool = x > 5 && x < 10
+
+	var ptr *int = &i
+	println(*ptr)
+}

@@ -1,0 +1,236 @@
+File testdata/parse_complete.yoru:1:1
+  Package: main
+  ImportDecl testdata/parse_complete.yoru:3:1
+    Path: fmt
+  TypeDecl testdata/parse_complete.yoru:5:1
+    Name: Point
+    Type:
+      StructType testdata/parse_complete.yoru:5:12
+        Field: x int
+        Field: y float
+  TypeDecl testdata/parse_complete.yoru:10:1
+    Name: Number
+    Alias: true
+    Type:
+      Name testdata/parse_complete.yoru:10:15 "int"
+  FuncDecl testdata/parse_complete.yoru:12:1
+    Recv: p Point
+    Name: Area
+    Result: int
+    Body:
+      BlockStmt testdata/parse_complete.yoru:12:27
+        ReturnStmt testdata/parse_complete.yoru:13:2
+          BinaryOp testdata/parse_complete.yoru:13:9 *
+            X:
+              SelectorExpr testdata/parse_complete.yoru:13:9
+                X:
+                  Name testdata/parse_complete.yoru:13:9 "p"
+                Sel: x
+            Y:
+              SelectorExpr testdata/parse_complete.yoru:13:15
+                X:
+                  Name testdata/parse_complete.yoru:13:15 "p"
+                Sel: y
+  FuncDecl testdata/parse_complete.yoru:16:1
+    Name: add
+    Params:
+      a int
+      b int
+    Result: int
+    Body:
+      BlockStmt testdata/parse_complete.yoru:16:28
+        ReturnStmt testdata/parse_complete.yoru:17:2
+          BinaryOp testdata/parse_complete.yoru:17:9 +
+            X:
+              Name testdata/parse_complete.yoru:17:9 "a"
+            Y:
+              Name testdata/parse_complete.yoru:17:13 "b"
+  FuncDecl testdata/parse_complete.yoru:20:1
+    Name: main
+    Body:
+      BlockStmt testdata/parse_complete.yoru:20:13
+        DeclStmt testdata/parse_complete.yoru:21:2
+          VarDecl testdata/parse_complete.yoru:21:2
+            Name: p
+            Type:
+              Name testdata/parse_complete.yoru:21:8 "Point"
+        AssignStmt testdata/parse_complete.yoru:22:2 =
+          LHS:
+            SelectorExpr testdata/parse_complete.yoru:22:2
+              X:
+                Name testdata/parse_complete.yoru:22:2 "p"
+              Sel: x
+          RHS:
+            BasicLit testdata/parse_complete.yoru:22:8 int "10"
+        AssignStmt testdata/parse_complete.yoru:23:2 =
+          LHS:
+            SelectorExpr testdata/parse_complete.yoru:23:2
+              X:
+                Name testdata/parse_complete.yoru:23:2 "p"
+              Sel: y
+          RHS:
+            BasicLit testdata/parse_complete.yoru:23:8 float "3.14"
+        AssignStmt testdata/parse_complete.yoru:25:2 :=
+          LHS:
+            Name testdata/parse_complete.yoru:25:2 "result"
+          RHS:
+            CallExpr testdata/parse_complete.yoru:25:12
+              Fun:
+                Name testdata/parse_complete.yoru:25:12 "add"
+              Args:
+                BasicLit testdata/parse_complete.yoru:25:16 int "1"
+                BasicLit testdata/parse_complete.yoru:25:19 int "2"
+        DeclStmt testdata/parse_complete.yoru:27:2
+          VarDecl testdata/parse_complete.yoru:27:2
+            Name: arr
+            Type:
+              ArrayType testdata/parse_complete.yoru:27:10
+                Len:
+                  BasicLit testdata/parse_complete.yoru:27:11 int "5"
+                Elem: int
+        AssignStmt testdata/parse_complete.yoru:28:2 =
+          LHS:
+            IndexExpr testdata/parse_complete.yoru:28:2
+              X:
+                Name testdata/parse_complete.yoru:28:2 "arr"
+              Index:
+                BasicLit testdata/parse_complete.yoru:28:6 int "0"
+          RHS:
+            BasicLit testdata/parse_complete.yoru:28:11 int "1"
+        DeclStmt testdata/parse_complete.yoru:30:2
+          VarDecl testdata/parse_complete.yoru:30:2
+            Name: r
+            Type:
+              RefType testdata/parse_complete.yoru:30:8
+                Base: Point
+            Value:
+              NewExpr testdata/parse_complete.yoru:30:20
+                Type: Point
+        AssignStmt testdata/parse_complete.yoru:31:2 =
+          LHS:
+            SelectorExpr testdata/parse_complete.yoru:31:2
+              X:
+                Name testdata/parse_complete.yoru:31:2 "r"
+              Sel: x
+          RHS:
+            BasicLit testdata/parse_complete.yoru:31:8 int "20"
+        IfStmt testdata/parse_complete.yoru:33:2
+          Cond:
+            BinaryOp testdata/parse_complete.yoru:33:5 >
+              X:
+                SelectorExpr testdata/parse_complete.yoru:33:5
+                  X:
+                    Name testdata/parse_complete.yoru:33:5 "p"
+                  Sel: x
+              Y:
+                BasicLit testdata/parse_complete.yoru:33:11 int "0"
+          Then:
+            BlockStmt testdata/parse_complete.yoru:33:13
+              ExprStmt testdata/parse_complete.yoru:34:3
+                CallExpr testdata/parse_complete.yoru:34:3
+                  Fun:
+                    Name testdata/parse_complete.yoru:34:3 "println"
+                  Args:
+                    BasicLit testdata/parse_complete.yoru:34:11 string "positive"
+          Else:
+            BlockStmt testdata/parse_complete.yoru:35:9
+              ExprStmt testdata/parse_complete.yoru:36:3
+                CallExpr testdata/parse_complete.yoru:36:3
+                  Fun:
+                    Name testdata/parse_complete.yoru:36:3 "println"
+                  Args:
+                    BasicLit testdata/parse_complete.yoru:36:11 string "non-positive"
+        EmptyStmt testdata/parse_complete.yoru:37:3
+        DeclStmt testdata/parse_complete.yoru:39:2
+          VarDecl testdata/parse_complete.yoru:39:2
+            Name: i
+            Type:
+              Name testdata/parse_complete.yoru:39:8 "int"
+            Value:
+              BasicLit testdata/parse_complete.yoru:39:14 int "0"
+        ForStmt testdata/parse_complete.yoru:40:2
+          Cond:
+            BinaryOp testdata/parse_complete.yoru:40:6 <
+              X:
+                Name testdata/parse_complete.yoru:40:6 "i"
+              Y:
+                BasicLit testdata/parse_complete.yoru:40:10 int "10"
+          Body:
+            BlockStmt testdata/parse_complete.yoru:40:13
+              ExprStmt testdata/parse_complete.yoru:41:3
+                CallExpr testdata/parse_complete.yoru:41:3
+                  Fun:
+                    Name testdata/parse_complete.yoru:41:3 "println"
+                  Args:
+                    Name testdata/parse_complete.yoru:41:11 "i"
+              AssignStmt testdata/parse_complete.yoru:42:3 =
+                LHS:
+                  Name testdata/parse_complete.yoru:42:3 "i"
+                RHS:
+                  BinaryOp testdata/parse_complete.yoru:42:7 +
+                    X:
+                      Name testdata/parse_complete.yoru:42:7 "i"
+                    Y:
+                      BasicLit testdata/parse_complete.yoru:42:11 int "1"
+        EmptyStmt testdata/parse_complete.yoru:43:3
+        ExprStmt testdata/parse_complete.yoru:45:2
+          CallExpr testdata/parse_complete.yoru:45:2
+            Fun:
+              Name testdata/parse_complete.yoru:45:2 "println"
+            Args:
+              CallExpr testdata/parse_complete.yoru:45:10
+                Fun:
+                  SelectorExpr testdata/parse_complete.yoru:45:10
+                    X:
+                      Name testdata/parse_complete.yoru:45:10 "p"
+                    Sel: Area
+        DeclStmt testdata/parse_complete.yoru:47:2
+          VarDecl testdata/parse_complete.yoru:47:2
+            Name: x
+            Type:
+              Name testdata/parse_complete.yoru:47:8 "int"
+            Value:
+              BinaryOp testdata/parse_complete.yoru:47:14 +
+                X:
+                  BasicLit testdata/parse_complete.yoru:47:14 int "1"
+                Y:
+                  BinaryOp testdata/parse_complete.yoru:47:18 *
+                    X:
+                      BasicLit testdata/parse_complete.yoru:47:18 int "2"
+                    Y:
+                      BasicLit testdata/parse_complete.yoru:47:22 int "3"
+        DeclStmt testdata/parse_complete.yoru:48:2
+          VarDecl testdata/parse_complete.yoru:48:2
+            Name: b
+            Type:
+              Name testdata/parse_complete.yoru:48:8 "bool"
+            Value:
+              BinaryOp testdata/parse_complete.yoru:48:15 &&
+                X:
+                  BinaryOp testdata/parse_complete.yoru:48:15 >
+                    X:
+                      Name testdata/parse_complete.yoru:48:15 "x"
+                    Y:
+                      BasicLit testdata/parse_complete.yoru:48:19 int "5"
+                Y:
+                  BinaryOp testdata/parse_complete.yoru:48:24 <
+                    X:
+                      Name testdata/parse_complete.yoru:48:24 "x"
+                    Y:
+                      BasicLit testdata/parse_complete.yoru:48:28 int "10"
+        DeclStmt testdata/parse_complete.yoru:50:2
+          VarDecl testdata/parse_complete.yoru:50:2
+            Name: ptr
+            Type:
+              PointerType testdata/parse_complete.yoru:50:10
+                Base: int
+            Value:
+              UnaryOp testdata/parse_complete.yoru:50:17 &
+                Name testdata/parse_complete.yoru:50:18 "i"
+        ExprStmt testdata/parse_complete.yoru:51:2
+          CallExpr testdata/parse_complete.yoru:51:2
+            Fun:
+              Name testdata/parse_complete.yoru:51:2 "println"
+            Args:
+              UnaryOp testdata/parse_complete.yoru:51:10 *
+                Name testdata/parse_complete.yoru:51:11 "ptr"

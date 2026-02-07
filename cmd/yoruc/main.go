@@ -17,6 +17,7 @@ var (
 	emitTokens   = flag.Bool("emit-tokens", false, "Output token stream")
 	noASI        = flag.Bool("no-asi", false, "Disable automatic semicolon insertion")
 	emitAST      = flag.Bool("emit-ast", false, "Output AST")
+	astFormat    = flag.String("ast-format", "text", "AST output format (text or json)")
 	emitTypedAST = flag.Bool("emit-typed-ast", false, "Output typed AST")
 	emitSSA      = flag.Bool("emit-ssa", false, "Output SSA")
 	emitLL       = flag.Bool("emit-ll", false, "Output LLVM IR")
@@ -69,10 +70,57 @@ func main() {
 		os.Exit(runEmitTokens(filename))
 	}
 
+	// Handle -emit-ast
+	if *emitAST {
+		os.Exit(runEmitAST(filename))
+	}
+
 	// TODO: Implement rest of compilation pipeline
 	fmt.Fprintf(os.Stderr, "yoruc: compilation not yet implemented\n")
 	fmt.Fprintf(os.Stderr, "input file: %s\n", filename)
 	os.Exit(1)
+}
+
+// runEmitAST parses the input file and outputs the AST.
+func runEmitAST(filename string) int {
+	f, err := os.Open(filename)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		return 1
+	}
+	defer f.Close()
+
+	var errs []string
+	errh := func(pos syntax.Pos, msg string) {
+		errs = append(errs, fmt.Sprintf("%s: %s", pos, msg))
+	}
+
+	p := syntax.NewParser(filename, f, errh)
+	if *noASI {
+		p.SetASIEnabled(false)
+	}
+	ast := p.Parse()
+
+	// Print errors first
+	for _, e := range errs {
+		fmt.Fprintln(os.Stderr, e)
+	}
+
+	// Output AST
+	switch *astFormat {
+	case "json":
+		if err := syntax.FprintJSON(os.Stdout, ast); err != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			return 1
+		}
+	default:
+		syntax.Fprint(os.Stdout, ast)
+	}
+
+	if len(errs) > 0 {
+		return 1
+	}
+	return 0
 }
 
 // runEmitTokens scans the input file and prints all tokens with positions.

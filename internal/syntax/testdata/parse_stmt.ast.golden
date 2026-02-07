@@ -1,0 +1,127 @@
+File testdata/parse_stmt.yoru:1:1
+  Package: main
+  FuncDecl testdata/parse_stmt.yoru:3:1
+    Name: f
+    Result: int
+    Body:
+      BlockStmt testdata/parse_stmt.yoru:3:14
+        EmptyStmt testdata/parse_stmt.yoru:4:1
+        ExprStmt testdata/parse_stmt.yoru:5:1
+          CallExpr testdata/parse_stmt.yoru:5:1
+            Fun:
+              Name testdata/parse_stmt.yoru:5:1 "foo"
+        AssignStmt testdata/parse_stmt.yoru:6:1 =
+          LHS:
+            Name testdata/parse_stmt.yoru:6:1 "x"
+          RHS:
+            BasicLit testdata/parse_stmt.yoru:6:5 int "1"
+        AssignStmt testdata/parse_stmt.yoru:7:1 :=
+          LHS:
+            Name testdata/parse_stmt.yoru:7:1 "x"
+          RHS:
+            BasicLit testdata/parse_stmt.yoru:7:6 int "2"
+        DeclStmt testdata/parse_stmt.yoru:8:1
+          VarDecl testdata/parse_stmt.yoru:8:1
+            Name: y
+            Type:
+              Name testdata/parse_stmt.yoru:8:7 "int"
+        IfStmt testdata/parse_stmt.yoru:9:1
+          Cond:
+            BinaryOp testdata/parse_stmt.yoru:9:4 >
+              X:
+                Name testdata/parse_stmt.yoru:9:4 "x"
+              Y:
+                BasicLit testdata/parse_stmt.yoru:9:8 int "0"
+          Then:
+            BlockStmt testdata/parse_stmt.yoru:9:10
+              AssignStmt testdata/parse_stmt.yoru:10:1 =
+                LHS:
+                  Name testdata/parse_stmt.yoru:10:1 "y"
+                RHS:
+                  BinaryOp testdata/parse_stmt.yoru:10:5 +
+                    X:
+                      Name testdata/parse_stmt.yoru:10:5 "y"
+                    Y:
+                      BasicLit testdata/parse_stmt.yoru:10:9 int "1"
+          Else:
+            IfStmt testdata/parse_stmt.yoru:11:8
+              Cond:
+                BinaryOp testdata/parse_stmt.yoru:11:11 <
+                  X:
+                    Name testdata/parse_stmt.yoru:11:11 "x"
+                  Y:
+                    BasicLit testdata/parse_stmt.yoru:11:15 int "0"
+              Then:
+                BlockStmt testdata/parse_stmt.yoru:11:17
+                  AssignStmt testdata/parse_stmt.yoru:12:1 =
+                    LHS:
+                      Name testdata/parse_stmt.yoru:12:1 "y"
+                    RHS:
+                      BinaryOp testdata/parse_stmt.yoru:12:5 -
+                        X:
+                          Name testdata/parse_stmt.yoru:12:5 "y"
+                        Y:
+                          BasicLit testdata/parse_stmt.yoru:12:9 int "1"
+              Else:
+                BlockStmt testdata/parse_stmt.yoru:13:8
+                  AssignStmt testdata/parse_stmt.yoru:14:1 =
+                    LHS:
+                      Name testdata/parse_stmt.yoru:14:1 "y"
+                    RHS:
+                      BasicLit testdata/parse_stmt.yoru:14:5 int "0"
+        EmptyStmt testdata/parse_stmt.yoru:15:2
+        ForStmt testdata/parse_stmt.yoru:16:1
+          Cond:
+            BinaryOp testdata/parse_stmt.yoru:16:5 <
+              X:
+                Name testdata/parse_stmt.yoru:16:5 "x"
+              Y:
+                BasicLit testdata/parse_stmt.yoru:16:9 int "10"
+          Body:
+            BlockStmt testdata/parse_stmt.yoru:16:12
+              IfStmt testdata/parse_stmt.yoru:17:1
+                Cond:
+                  BinaryOp testdata/parse_stmt.yoru:17:4 ==
+                    X:
+                      Name testdata/parse_stmt.yoru:17:4 "x"
+                    Y:
+                      BasicLit testdata/parse_stmt.yoru:17:9 int "5"
+                Then:
+                  BlockStmt testdata/parse_stmt.yoru:17:11
+                    BranchStmt testdata/parse_stmt.yoru:18:1 continue
+              EmptyStmt testdata/parse_stmt.yoru:19:2
+              AssignStmt testdata/parse_stmt.yoru:20:1 =
+                LHS:
+                  Name testdata/parse_stmt.yoru:20:1 "x"
+                RHS:
+                  BinaryOp testdata/parse_stmt.yoru:20:5 +
+                    X:
+                      Name testdata/parse_stmt.yoru:20:5 "x"
+                    Y:
+                      BasicLit testdata/parse_stmt.yoru:20:9 int "1"
+              IfStmt testdata/parse_stmt.yoru:21:1
+                Cond:
+                  BinaryOp testdata/parse_stmt.yoru:21:4 ==
+                    X:
+                      Name testdata/parse_stmt.yoru:21:4 "x"
+                    Y:
+                      BasicLit testdata/parse_stmt.yoru:21:9 int "9"
+                Then:
+                  BlockStmt testdata/parse_stmt.yoru:21:11
+                    BranchStmt testdata/parse_stmt.yoru:22:1 break
+              EmptyStmt testdata/parse_stmt.yoru:23:2
+        EmptyStmt testdata/parse_stmt.yoru:24:2
+        BlockStmt testdata/parse_stmt.yoru:25:1
+          AssignStmt testdata/parse_stmt.yoru:26:1 :=
+            LHS:
+              Name testdata/parse_stmt.yoru:26:1 "z"
+            RHS:
+              Name testdata/parse_stmt.yoru:26:6 "y"
+          AssignStmt testdata/parse_stmt.yoru:27:1 =
+            LHS:
+              Name testdata/parse_stmt.yoru:27:1 "_"
+            RHS:
+              Name testdata/parse_stmt.yoru:27:5 "z"
+        EmptyStmt testdata/parse_stmt.yoru:28:2
+        ReturnStmt testdata/parse_stmt.yoru:29:1
+          Name testdata/parse_stmt.yoru:29:8 "y"

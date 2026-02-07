@@ -1,0 +1,23 @@
+package main
+
+type Point struct {
+x int
+y int
+}
+
+func f() {
+_ = 1 + 2 * 3
+_ = (1 + 2) * 3
+_ = -x
+_ = !ok
+_ = *ptr
+_ = &v
+_ = foo(1, 2)
+_ = arr[i]
+_ = p.x
+_ = p.x.y
+_ = new(Point)
+_ = Point{x: 1, y: 2}
+_ = Point{1, 2}
+_ = panic("boom")
+}

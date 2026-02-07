@@ -1,0 +1,81 @@
+File testdata/parse_decl.yoru:1:1
+  Package: main
+  ImportDecl testdata/parse_decl.yoru:3:1
+    Path: fmt
+  ImportDecl testdata/parse_decl.yoru:4:1
+    Path: os
+  TypeDecl testdata/parse_decl.yoru:6:1
+    Name: Point
+    Type:
+      StructType testdata/parse_decl.yoru:6:12
+        Field: x int
+        Field: y int
+  TypeDecl testdata/parse_decl.yoru:11:1
+    Name: Number
+    Alias: true
+    Type:
+      Name testdata/parse_decl.yoru:11:15 "int"
+  TypeDecl testdata/parse_decl.yoru:12:1
+    Name: Ptr
+    Alias: true
+    Type:
+      PointerType testdata/parse_decl.yoru:12:12
+        Base: Point
+  TypeDecl testdata/parse_decl.yoru:13:1
+    Name: RefPoint
+    Alias: true
+    Type:
+      RefType testdata/parse_decl.yoru:13:17
+        Base: Point
+  TypeDecl testdata/parse_decl.yoru:14:1
+    Name: Matrix
+    Alias: true
+    Type:
+      ArrayType testdata/parse_decl.yoru:14:15
+        Len:
+          BasicLit testdata/parse_decl.yoru:14:16 int "2"
+        Elem: [3]int
+  VarDecl testdata/parse_decl.yoru:16:1
+    Name: g
+    Type:
+      Name testdata/parse_decl.yoru:16:7 "int"
+  VarDecl testdata/parse_decl.yoru:17:1
+    Name: gp
+    Type:
+      RefType testdata/parse_decl.yoru:17:8
+        Base: Point
+    Value:
+      NewExpr testdata/parse_decl.yoru:17:20
+        Type: Point
+  FuncDecl testdata/parse_decl.yoru:19:1
+    Recv: p Point
+    Name: Sum
+    Result: int
+    Body:
+      BlockStmt testdata/parse_decl.yoru:19:26
+        ReturnStmt testdata/parse_decl.yoru:20:1
+          BinaryOp testdata/parse_decl.yoru:20:8 +
+            X:
+              SelectorExpr testdata/parse_decl.yoru:20:8
+                X:
+                  Name testdata/parse_decl.yoru:20:8 "p"
+                Sel: x
+            Y:
+              SelectorExpr testdata/parse_decl.yoru:20:14
+                X:
+                  Name testdata/parse_decl.yoru:20:14 "p"
+                Sel: y
+  FuncDecl testdata/parse_decl.yoru:23:1
+    Name: add
+    Params:
+      a int
+      b int
+    Result: int
+    Body:
+      BlockStmt testdata/parse_decl.yoru:23:28
+        ReturnStmt testdata/parse_decl.yoru:24:1
+          BinaryOp testdata/parse_decl.yoru:24:8 +
+            X:
+              Name testdata/parse_decl.yoru:24:8 "a"
+            Y:
+              Name testdata/parse_decl.yoru:24:12 "b"

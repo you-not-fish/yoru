@@ -1,0 +1,142 @@
+File testdata/parse_expr.yoru:1:1
+  Package: main
+  TypeDecl testdata/parse_expr.yoru:3:1
+    Name: Point
+    Type:
+      StructType testdata/parse_expr.yoru:3:12
+        Field: x int
+        Field: y int
+  FuncDecl testdata/parse_expr.yoru:8:1
+    Name: f
+    Body:
+      BlockStmt testdata/parse_expr.yoru:8:10
+        AssignStmt testdata/parse_expr.yoru:9:1 =
+          LHS:
+            Name testdata/parse_expr.yoru:9:1 "_"
+          RHS:
+            BinaryOp testdata/parse_expr.yoru:9:5 +
+              X:
+                BasicLit testdata/parse_expr.yoru:9:5 int "1"
+              Y:
+                BinaryOp testdata/parse_expr.yoru:9:9 *
+                  X:
+                    BasicLit testdata/parse_expr.yoru:9:9 int "2"
+                  Y:
+                    BasicLit testdata/parse_expr.yoru:9:13 int "3"
+        AssignStmt testdata/parse_expr.yoru:10:1 =
+          LHS:
+            Name testdata/parse_expr.yoru:10:1 "_"
+          RHS:
+            BinaryOp testdata/parse_expr.yoru:10:5 *
+              X:
+                ParenExpr testdata/parse_expr.yoru:10:5
+                  BinaryOp testdata/parse_expr.yoru:10:6 +
+                    X:
+                      BasicLit testdata/parse_expr.yoru:10:6 int "1"
+                    Y:
+                      BasicLit testdata/parse_expr.yoru:10:10 int "2"
+              Y:
+                BasicLit testdata/parse_expr.yoru:10:15 int "3"
+        AssignStmt testdata/parse_expr.yoru:11:1 =
+          LHS:
+            Name testdata/parse_expr.yoru:11:1 "_"
+          RHS:
+            UnaryOp testdata/parse_expr.yoru:11:5 -
+              Name testdata/parse_expr.yoru:11:6 "x"
+        AssignStmt testdata/parse_expr.yoru:12:1 =
+          LHS:
+            Name testdata/parse_expr.yoru:12:1 "_"
+          RHS:
+            UnaryOp testdata/parse_expr.yoru:12:5 !
+              Name testdata/parse_expr.yoru:12:6 "ok"
+        AssignStmt testdata/parse_expr.yoru:13:1 =
+          LHS:
+            Name testdata/parse_expr.yoru:13:1 "_"
+          RHS:
+            UnaryOp testdata/parse_expr.yoru:13:5 *
+              Name testdata/parse_expr.yoru:13:6 "ptr"
+        AssignStmt testdata/parse_expr.yoru:14:1 =
+          LHS:
+            Name testdata/parse_expr.yoru:14:1 "_"
+          RHS:
+            UnaryOp testdata/parse_expr.yoru:14:5 &
+              Name testdata/parse_expr.yoru:14:6 "v"
+        AssignStmt testdata/parse_expr.yoru:15:1 =
+          LHS:
+            Name testdata/parse_expr.yoru:15:1 "_"
+          RHS:
+            CallExpr testdata/parse_expr.yoru:15:5
+              Fun:
+                Name testdata/parse_expr.yoru:15:5 "foo"
+              Args:
+                BasicLit testdata/parse_expr.yoru:15:9 int "1"
+                BasicLit testdata/parse_expr.yoru:15:12 int "2"
+        AssignStmt testdata/parse_expr.yoru:16:1 =
+          LHS:
+            Name testdata/parse_expr.yoru:16:1 "_"
+          RHS:
+            IndexExpr testdata/parse_expr.yoru:16:5
+              X:
+                Name testdata/parse_expr.yoru:16:5 "arr"
+              Index:
+                Name testdata/parse_expr.yoru:16:9 "i"
+        AssignStmt testdata/parse_expr.yoru:17:1 =
+          LHS:
+            Name testdata/parse_expr.yoru:17:1 "_"
+          RHS:
+            SelectorExpr testdata/parse_expr.yoru:17:5
+              X:
+                Name testdata/parse_expr.yoru:17:5 "p"
+              Sel: x
+        AssignStmt testdata/parse_expr.yoru:18:1 =
+          LHS:
+            Name testdata/parse_expr.yoru:18:1 "_"
+          RHS:
+            SelectorExpr testdata/parse_expr.yoru:18:5
+              X:
+                SelectorExpr testdata/parse_expr.yoru:18:5
+                  X:
+                    Name testdata/parse_expr.yoru:18:5 "p"
+                  Sel: x
+              Sel: y
+        AssignStmt testdata/parse_expr.yoru:19:1 =
+          LHS:
+            Name testdata/parse_expr.yoru:19:1 "_"
+          RHS:
+            NewExpr testdata/parse_expr.yoru:19:5
+              Type: Point
+        AssignStmt testdata/parse_expr.yoru:20:1 =
+          LHS:
+            Name testdata/parse_expr.yoru:20:1 "_"
+          RHS:
+            CompositeLit testdata/parse_expr.yoru:20:5
+              Type: Point
+              Elems:
+                KeyValue testdata/parse_expr.yoru:20:11
+                  Key:
+                    Name testdata/parse_expr.yoru:20:11 "x"
+                  Value:
+                    BasicLit testdata/parse_expr.yoru:20:14 int "1"
+                KeyValue testdata/parse_expr.yoru:20:17
+                  Key:
+                    Name testdata/parse_expr.yoru:20:17 "y"
+                  Value:
+                    BasicLit testdata/parse_expr.yoru:20:20 int "2"
+        AssignStmt testdata/parse_expr.yoru:21:1 =
+          LHS:
+            Name testdata/parse_expr.yoru:21:1 "_"
+          RHS:
+            CompositeLit testdata/parse_expr.yoru:21:5
+              Type: Point
+              Elems:
+                BasicLit testdata/parse_expr.yoru:21:11 int "1"
+                BasicLit testdata/parse_expr.yoru:21:14 int "2"
+        AssignStmt testdata/parse_expr.yoru:22:1 =
+          LHS:
+            Name testdata/parse_expr.yoru:22:1 "_"
+          RHS:
+            CallExpr testdata/parse_expr.yoru:22:5
+              Fun:
+                Name testdata/parse_expr.yoru:22:5 "panic"
+              Args:
+                BasicLit testdata/parse_expr.yoru:22:11 string "boom"
