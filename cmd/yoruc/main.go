@@ -10,6 +10,8 @@ import (
 	"strings"
 
 	"github.com/you-not-fish/yoru/internal/syntax"
+	"github.com/you-not-fish/yoru/internal/types"
+	"github.com/you-not-fish/yoru/internal/types2"
 )
 
 // Compiler flags
@@ -73,6 +75,16 @@ func main() {
 	// Handle -emit-ast
 	if *emitAST {
 		os.Exit(runEmitAST(filename))
+	}
+
+	// Handle -emit-typed-ast
+	if *emitTypedAST {
+		os.Exit(runEmitTypedAST(filename))
+	}
+
+	// Handle -emit-layout
+	if *emitLayout {
+		os.Exit(runEmitLayout(filename))
 	}
 
 	// TODO: Implement rest of compilation pipeline
@@ -313,4 +325,363 @@ func checkTool(name string, args ...string) (string, bool) {
 		return line, true
 	}
 	return "", false
+}
+
+// runEmitTypedAST parses, type-checks, and outputs the typed AST.
+func runEmitTypedAST(filename string) int {
+	f, err := os.Open(filename)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		return 1
+	}
+	defer f.Close()
+
+	var parseErrs []string
+	parseErrh := func(pos syntax.Pos, msg string) {
+		parseErrs = append(parseErrs, fmt.Sprintf("%s: %s", pos, msg))
+	}
+
+	p := syntax.NewParser(filename, f, parseErrh)
+	if *noASI {
+		p.SetASIEnabled(false)
+	}
+	ast := p.Parse()
+
+	// Print parse errors
+	for _, e := range parseErrs {
+		fmt.Fprintln(os.Stderr, e)
+	}
+	if len(parseErrs) > 0 {
+		return 1
+	}
+
+	// Type check
+	var typeErrs []string
+	typeErrh := func(pos syntax.Pos, msg string) {
+		typeErrs = append(typeErrs, fmt.Sprintf("%s: %s", pos, msg))
+	}
+
+	conf := &types2.Config{
+		Error: typeErrh,
+		Sizes: types.DefaultSizes,
+	}
+	info := &types2.Info{
+		Types:  make(map[syntax.Expr]types2.TypeAndValue),
+		Defs:   make(map[*syntax.Name]types.Object),
+		Uses:   make(map[*syntax.Name]types.Object),
+		Scopes: make(map[syntax.Node]*types.Scope),
+	}
+
+	pkg, _ := types2.Check(filename, ast, conf, info)
+
+	// Print type errors
+	for _, e := range typeErrs {
+		fmt.Fprintln(os.Stderr, e)
+	}
+
+	// Output typed AST
+	printTypedAST(ast, info, pkg)
+
+	if len(typeErrs) > 0 {
+		return 1
+	}
+	return 0
+}
+
+// printTypedAST outputs the AST with type annotations.
+func printTypedAST(file *syntax.File, info *types2.Info, pkg *types.Package) {
+	fmt.Printf("File\n")
+	fmt.Printf("  PkgName: %s\n", file.PkgName.Value)
+
+	if len(file.Imports) > 0 {
+		fmt.Printf("  Imports:\n")
+		for _, imp := range file.Imports {
+			fmt.Printf("    ImportDecl: %s\n", imp.Path.Value)
+		}
+	}
+
+	fmt.Printf("  Decls:\n")
+	for _, decl := range file.Decls {
+		printTypedDecl(decl, info, "    ")
+	}
+}
+
+// printTypedDecl outputs a declaration with type annotations.
+func printTypedDecl(decl syntax.Decl, info *types2.Info, indent string) {
+	switch d := decl.(type) {
+	case *syntax.TypeDecl:
+		fmt.Printf("%sTypeDecl\n", indent)
+		if obj := info.Defs[d.Name]; obj != nil {
+			fmt.Printf("%s  Name: %s (%s)\n", indent, d.Name.Value, obj.Type())
+		} else {
+			fmt.Printf("%s  Name: %s\n", indent, d.Name.Value)
+		}
+
+	case *syntax.VarDecl:
+		fmt.Printf("%sVarDecl\n", indent)
+		if obj := info.Defs[d.Name]; obj != nil {
+			fmt.Printf("%s  Name: %s (%s)\n", indent, d.Name.Value, obj.Type())
+		} else {
+			fmt.Printf("%s  Name: %s\n", indent, d.Name.Value)
+		}
+		if d.Value != nil {
+			fmt.Printf("%s  Value: ", indent)
+			printTypedExpr(d.Value, info)
+			fmt.Println()
+		}
+
+	case *syntax.FuncDecl:
+		fmt.Printf("%sFuncDecl\n", indent)
+		if obj := info.Defs[d.Name]; obj != nil {
+			fmt.Printf("%s  Name: %s (%s)\n", indent, d.Name.Value, obj.Type())
+		} else {
+			fmt.Printf("%s  Name: %s\n", indent, d.Name.Value)
+		}
+		if d.Body != nil {
+			fmt.Printf("%s  Body:\n", indent)
+			for _, stmt := range d.Body.Stmts {
+				printTypedStmt(stmt, info, indent+"    ")
+			}
+		}
+	}
+}
+
+// printTypedStmt outputs a statement with type annotations.
+func printTypedStmt(stmt syntax.Stmt, info *types2.Info, indent string) {
+	switch s := stmt.(type) {
+	case *syntax.ExprStmt:
+		fmt.Printf("%sExprStmt\n", indent)
+		fmt.Printf("%s  X: ", indent)
+		printTypedExpr(s.X, info)
+		fmt.Println()
+
+	case *syntax.AssignStmt:
+		fmt.Printf("%sAssignStmt (%s)\n", indent, s.Op)
+		for i, lhs := range s.LHS {
+			fmt.Printf("%s  LHS[%d]: ", indent, i)
+			printTypedExpr(lhs, info)
+			fmt.Println()
+		}
+		for i, rhs := range s.RHS {
+			fmt.Printf("%s  RHS[%d]: ", indent, i)
+			printTypedExpr(rhs, info)
+			fmt.Println()
+		}
+
+	case *syntax.ReturnStmt:
+		fmt.Printf("%sReturnStmt\n", indent)
+		if s.Result != nil {
+			fmt.Printf("%s  Result: ", indent)
+			printTypedExpr(s.Result, info)
+			fmt.Println()
+		}
+
+	case *syntax.IfStmt:
+		fmt.Printf("%sIfStmt\n", indent)
+		fmt.Printf("%s  Cond: ", indent)
+		printTypedExpr(s.Cond, info)
+		fmt.Println()
+		fmt.Printf("%s  Then:\n", indent)
+		for _, st := range s.Then.Stmts {
+			printTypedStmt(st, info, indent+"    ")
+		}
+		if s.Else != nil {
+			fmt.Printf("%s  Else:\n", indent)
+			if block, ok := s.Else.(*syntax.BlockStmt); ok {
+				for _, st := range block.Stmts {
+					printTypedStmt(st, info, indent+"    ")
+				}
+			}
+		}
+
+	case *syntax.ForStmt:
+		fmt.Printf("%sForStmt\n", indent)
+		if s.Cond != nil {
+			fmt.Printf("%s  Cond: ", indent)
+			printTypedExpr(s.Cond, info)
+			fmt.Println()
+		}
+		fmt.Printf("%s  Body:\n", indent)
+		for _, st := range s.Body.Stmts {
+			printTypedStmt(st, info, indent+"    ")
+		}
+
+	case *syntax.DeclStmt:
+		printTypedDecl(s.Decl, info, indent)
+
+	case *syntax.BlockStmt:
+		fmt.Printf("%sBlockStmt\n", indent)
+		for _, st := range s.Stmts {
+			printTypedStmt(st, info, indent+"  ")
+		}
+
+	default:
+		fmt.Printf("%s%T\n", indent, stmt)
+	}
+}
+
+// printTypedExpr outputs an expression with type annotations.
+func printTypedExpr(expr syntax.Expr, info *types2.Info) {
+	tv, ok := info.Types[expr]
+
+	switch e := expr.(type) {
+	case *syntax.Name:
+		if ok && tv.Type != nil {
+			fmt.Printf("Name %q (%s)", e.Value, tv.Type)
+		} else {
+			fmt.Printf("Name %q", e.Value)
+		}
+
+	case *syntax.BasicLit:
+		if ok && tv.Type != nil {
+			fmt.Printf("BasicLit %q (%s)", e.Value, tv.Type)
+		} else {
+			fmt.Printf("BasicLit %q", e.Value)
+		}
+
+	case *syntax.Operation:
+		if ok && tv.Type != nil {
+			fmt.Printf("Operation %s (%s)", e.Op, tv.Type)
+		} else {
+			fmt.Printf("Operation %s", e.Op)
+		}
+
+	case *syntax.CallExpr:
+		if ok && tv.Type != nil {
+			fmt.Printf("CallExpr (%s)", tv.Type)
+		} else {
+			fmt.Printf("CallExpr (void)")
+		}
+
+	case *syntax.IndexExpr:
+		if ok && tv.Type != nil {
+			fmt.Printf("IndexExpr (%s)", tv.Type)
+		} else {
+			fmt.Printf("IndexExpr")
+		}
+
+	case *syntax.SelectorExpr:
+		if ok && tv.Type != nil {
+			fmt.Printf("SelectorExpr .%s (%s)", e.Sel.Value, tv.Type)
+		} else {
+			fmt.Printf("SelectorExpr .%s", e.Sel.Value)
+		}
+
+	case *syntax.NewExpr:
+		if ok && tv.Type != nil {
+			fmt.Printf("NewExpr (%s)", tv.Type)
+		} else {
+			fmt.Printf("NewExpr")
+		}
+
+	default:
+		if ok && tv.Type != nil {
+			fmt.Printf("%T (%s)", expr, tv.Type)
+		} else {
+			fmt.Printf("%T", expr)
+		}
+	}
+}
+
+// runEmitLayout parses, type-checks, and outputs struct layouts.
+func runEmitLayout(filename string) int {
+	f, err := os.Open(filename)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		return 1
+	}
+	defer f.Close()
+
+	var parseErrs []string
+	parseErrh := func(pos syntax.Pos, msg string) {
+		parseErrs = append(parseErrs, fmt.Sprintf("%s: %s", pos, msg))
+	}
+
+	p := syntax.NewParser(filename, f, parseErrh)
+	if *noASI {
+		p.SetASIEnabled(false)
+	}
+	ast := p.Parse()
+
+	// Print parse errors
+	for _, e := range parseErrs {
+		fmt.Fprintln(os.Stderr, e)
+	}
+	if len(parseErrs) > 0 {
+		return 1
+	}
+
+	// Type check
+	var typeErrs []string
+	typeErrh := func(pos syntax.Pos, msg string) {
+		typeErrs = append(typeErrs, fmt.Sprintf("%s: %s", pos, msg))
+	}
+
+	conf := &types2.Config{
+		Error: typeErrh,
+		Sizes: types.DefaultSizes,
+	}
+	info := &types2.Info{
+		Types:  make(map[syntax.Expr]types2.TypeAndValue),
+		Defs:   make(map[*syntax.Name]types.Object),
+		Uses:   make(map[*syntax.Name]types.Object),
+		Scopes: make(map[syntax.Node]*types.Scope),
+	}
+
+	_, _ = types2.Check(filename, ast, conf, info)
+
+	// Print type errors
+	for _, e := range typeErrs {
+		fmt.Fprintln(os.Stderr, e)
+	}
+
+	// Output struct layouts
+	fmt.Println("=== Struct Layouts ===")
+	fmt.Println()
+
+	for _, decl := range ast.Decls {
+		td, ok := decl.(*syntax.TypeDecl)
+		if !ok {
+			continue
+		}
+
+		// Get the type object
+		obj := info.Defs[td.Name]
+		if obj == nil {
+			continue
+		}
+
+		tn, ok := obj.(*types.TypeName)
+		if !ok {
+			continue
+		}
+
+		named, ok := tn.Type().(*types.Named)
+		if !ok {
+			continue
+		}
+
+		st, ok := named.Underlying().(*types.Struct)
+		if !ok {
+			continue
+		}
+
+		// Print struct layout
+		fmt.Printf("type %s struct {\n", td.Name.Value)
+		for i, field := range st.Fields() {
+			offset := st.Offset(i)
+			size := types.DefaultSizes.Sizeof(field.Type())
+			align := types.DefaultSizes.Alignof(field.Type())
+			fmt.Printf("    %-10s %-15s // offset: %d, size: %d, align: %d\n",
+				field.Name(), field.Type(), offset, size, align)
+		}
+		fmt.Printf("}\n")
+		fmt.Printf("// size: %d, align: %d\n", st.Size(), st.Align())
+		fmt.Println()
+	}
+
+	if len(typeErrs) > 0 {
+		return 1
+	}
+	return 0
 }

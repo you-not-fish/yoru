@@ -197,6 +197,24 @@ func (t Token) IsEOF() bool {
 	return t == _EOF
 }
 
+// IsDefine reports whether t is the define operator (:=).
+func (t Token) IsDefine() bool {
+	return t == _Define
+}
+
+// IsAssign reports whether t is the assignment operator (=).
+func (t Token) IsAssign() bool {
+	return t == _Assign
+}
+
+// Exported operator tokens for type checker access
+const (
+	Not Token = _Not // !
+	Sub Token = _Sub // -
+	And Token = _And // &
+	Mul Token = _Mul // *
+)
+
 // LitKind represents the kind of a literal token.
 type LitKind uint8
 
