@@ -6,34 +6,43 @@ import (
 )
 
 // checkTypeDecl type-checks a type declaration.
-func (c *Checker) checkTypeDecl(decl *syntax.TypeDecl) {
+// It reports whether the declaration's resolved type changed.
+func (c *Checker) checkTypeDecl(decl *syntax.TypeDecl) bool {
 	obj := c.lookup(decl.Name.Value)
 	if obj == nil {
-		return // already reported in collectDecls
+		return false // already reported in collectDecls
 	}
 	tn, ok := obj.(*types.TypeName)
 	if !ok {
-		return
+		return false
 	}
 
 	// Resolve the underlying type
 	underlying := c.resolveType(decl.Type)
 	if underlying == nil {
-		return
+		return false
 	}
 
 	if decl.Alias {
 		// Type alias: type T = U
-		// The TypeName simply refers to the aliased type
-		tn.Type() // already set in collectTypeDecl
-		// Update the type to the resolved type
-		// For aliases, we don't wrap in Named
-	} else {
-		// Type definition: type T struct { ... }
-		// Create a Named type
-		named := types.NewNamed(tn, underlying)
-		_ = named // TypeName.typ is already set by NewNamed
+		if tn.Type() == underlying {
+			return false
+		}
+		tn.SetType(underlying)
+		return true
 	}
+
+	// Type definition: type T struct { ... }
+	// Reuse named placeholder created during collection when available.
+	if named, ok := tn.Type().(*types.Named); ok {
+		if named.Underlying() == underlying {
+			return false
+		}
+		named.SetUnderlying(underlying)
+		return true
+	}
+	types.NewNamed(tn, underlying)
+	return true
 }
 
 // checkVarDecl type-checks a top-level variable declaration.
@@ -63,6 +72,10 @@ func (c *Checker) checkVarDecl(decl *syntax.VarDecl) {
 		if val.mode == invalid {
 			return
 		}
+		if val.mode == novalue {
+			c.errorf(decl.Value.Pos(), "cannot use no-value expression as variable initializer")
+			return
+		}
 
 		if typ == nil {
 			// Type inference
@@ -88,13 +101,8 @@ func (c *Checker) checkVarDecl(decl *syntax.VarDecl) {
 
 // checkFuncSignature type-checks a function signature.
 func (c *Checker) checkFuncSignature(decl *syntax.FuncDecl) {
-	obj, _ := c.scope.LookupParent(decl.Name.Value)
-	if obj == nil {
-		return
-	}
-	fn, ok := obj.(*types.FuncObj)
-	if !ok {
-		// Might be a method, handled differently
+	fn := c.funcDecls[decl]
+	if fn == nil {
 		return
 	}
 
@@ -135,7 +143,7 @@ func (c *Checker) checkFuncSignature(decl *syntax.FuncDecl) {
 		recv = types.NewVar(decl.Recv.Pos(), name, recvType)
 
 		// Add method to receiver type
-		c.addMethod(recvType, fn)
+		c.addMethod(decl.Name.Pos(), recvType, fn)
 	}
 
 	// Create function signature
@@ -144,17 +152,27 @@ func (c *Checker) checkFuncSignature(decl *syntax.FuncDecl) {
 }
 
 // addMethod adds a method to the receiver's named type.
-func (c *Checker) addMethod(recvType types.Type, method *types.FuncObj) {
+func (c *Checker) addMethod(pos syntax.Pos, recvType types.Type, method *types.FuncObj) {
 	// Get base type (strip pointer/ref)
 	base := recvType
 	if ptr, ok := recvType.(*types.Pointer); ok {
 		base = ptr.Elem()
 	}
+	if _, ok := recvType.(*types.Ref); ok {
+		c.errorf(pos, "method receiver cannot be ref type %s", recvType)
+		return
+	}
 
 	// Find the named type
 	if named, ok := base.(*types.Named); ok {
+		if existing := named.LookupMethod(method.Name()); existing != nil {
+			c.errorf(pos, "method %s already declared for %s", method.Name(), named)
+			return
+		}
 		named.AddMethod(method)
+		return
 	}
+	c.errorf(pos, "method receiver must be a named type or pointer to named type")
 }
 
 // checkFuncBody type-checks a function body.
@@ -164,12 +182,8 @@ func (c *Checker) checkFuncBody(decl *syntax.FuncDecl) {
 	}
 
 	// Get function object
-	obj, _ := c.scope.LookupParent(decl.Name.Value)
-	if obj == nil {
-		return
-	}
-	fn, ok := obj.(*types.FuncObj)
-	if !ok {
+	fn := c.funcDecls[decl]
+	if fn == nil {
 		return
 	}
 
@@ -180,9 +194,7 @@ func (c *Checker) checkFuncBody(decl *syntax.FuncDecl) {
 
 	// Save function context
 	oldFuncSig := c.funcSig
-	oldHasReturn := c.hasReturn
 	c.funcSig = sig
-	c.hasReturn = false
 
 	// Create function scope
 	c.openScope(decl.Body, "function "+decl.Name.Value)
@@ -205,8 +217,8 @@ func (c *Checker) checkFuncBody(decl *syntax.FuncDecl) {
 	// Check body statements
 	c.stmts(decl.Body.Stmts)
 
-	// Check return
-	if sig.Result() != nil && !c.hasReturn {
+	// Check return completeness: all paths must return when a result type exists.
+	if sig.Result() != nil && !c.blockMustReturn(decl.Body.Stmts) {
 		c.errorf(decl.Body.Rbrace, "missing return statement")
 	}
 
@@ -214,5 +226,4 @@ func (c *Checker) checkFuncBody(decl *syntax.FuncDecl) {
 
 	// Restore function context
 	c.funcSig = oldFuncSig
-	c.hasReturn = oldHasReturn
 }

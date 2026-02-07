@@ -204,10 +204,10 @@ func setNext(n1 ref Node, n2 ref Node) {
 `)
 }
 
-// TestAddressOfGlobalOK tests that &global produces ref T not *T.
-// Globals are not stack-local so they're safe.
+// TestAddressOfGlobalForbidden tests that &global is disallowed.
+// *T may only be created from &local.
 func TestAddressOfGlobalVar(t *testing.T) {
-	expectNoErrors(t, `
+	expectErrors(t, `
 package main
 
 var global int = 42
@@ -215,7 +215,7 @@ var global int = 42
 func main() {
 	var p *int = &global
 }
-`)
+`, "*T can only be created from &local values")
 }
 
 // TestPointerDereference tests that *p works for pointer types.

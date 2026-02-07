@@ -2,8 +2,8 @@ package types2
 
 import (
 	"go/constant"
+	"go/token"
 	"strconv"
-	"strings"
 
 	"github.com/you-not-fish/yoru/internal/syntax"
 	"github.com/you-not-fish/yoru/internal/types"
@@ -136,6 +136,11 @@ func (c *Checker) unary(x *operand, e *syntax.Operation) {
 	if x.mode == invalid {
 		return
 	}
+	if x.mode == novalue {
+		c.errorf(e.Pos(), "cannot use no-value expression in unary operation")
+		x.mode = invalid
+		return
+	}
 
 	switch e.Op {
 	case syntax.Not: // !
@@ -145,7 +150,7 @@ func (c *Checker) unary(x *operand, e *syntax.Operation) {
 			return
 		}
 		if x.mode == constant_ {
-			x.val = constant.UnaryOp(0, x.val, 0) // token.NOT
+			x.val = constant.UnaryOp(token.NOT, x.val, 0)
 		}
 		x.typ = types.Typ[types.UntypedBool]
 		if !types.IsUntypedType(x.typ) {
@@ -159,12 +164,17 @@ func (c *Checker) unary(x *operand, e *syntax.Operation) {
 			return
 		}
 		if x.mode == constant_ {
-			x.val = constant.UnaryOp(12, x.val, 0) // token.SUB
+			x.val = constant.UnaryOp(token.SUB, x.val, 0)
 		}
 
 	case syntax.And: // &
 		if x.mode != variable {
 			c.errorf(e.Pos(), "cannot take address of %s", e.X)
+			x.mode = invalid
+			return
+		}
+		if !c.isAddressOfLocal(e.X) {
+			c.errorf(e.Pos(), "*T can only be created from &local values")
 			x.mode = invalid
 			return
 		}
@@ -201,18 +211,19 @@ func (c *Checker) binary(x *operand, e *syntax.Operation) {
 		x.mode = invalid
 		return
 	}
+	if x.mode == novalue || y.mode == novalue {
+		c.errorf(e.Pos(), "cannot use no-value expression in binary operation")
+		x.mode = invalid
+		return
+	}
 
 	op := e.Op
-	prec := op.Precedence()
-
-	// Comparison operators
-	if prec == 3 {
+	if op.IsComparison() {
 		c.comparison(x, &y, op)
 		return
 	}
 
-	// Logical operators
-	if prec == 1 || prec == 2 {
+	if op.IsLogical() {
 		c.logical(x, &y, op)
 		return
 	}
@@ -223,6 +234,8 @@ func (c *Checker) binary(x *operand, e *syntax.Operation) {
 
 // comparison handles comparison operators (==, !=, <, <=, >, >=).
 func (c *Checker) comparison(x, y *operand, op syntax.Token) {
+	wasConst := x.mode == constant_ && y.mode == constant_
+
 	// Check that operands are comparable
 	if !c.comparable(x, y) {
 		c.errorf(x.pos, "cannot compare %s and %s", x.typ, y.typ)
@@ -231,7 +244,7 @@ func (c *Checker) comparison(x, y *operand, op syntax.Token) {
 	}
 
 	// For ordering operators, check that types are ordered
-	if op.Precedence() == 3 && (op != syntax.Token(28) && op != syntax.Token(29)) { // not == or !=
+	if !op.IsEquality() {
 		if !types.Ordered(x.typ) {
 			c.errorf(x.pos, "operator %s not defined for %s", op, x.typ)
 			x.mode = invalid
@@ -239,23 +252,32 @@ func (c *Checker) comparison(x, y *operand, op syntax.Token) {
 		}
 	}
 
-	// Result is always bool
-	x.mode = value
-	x.typ = types.Typ[types.Bool]
-
-	// Constant folding
-	if x.mode == constant_ && y.mode == constant_ {
+	if wasConst {
 		x.val = c.evalComparison(x.val, y.val, op)
 		x.mode = constant_
 		x.typ = types.Typ[types.UntypedBool]
+		return
 	}
+
+	// Result is always bool
+	x.mode = value
+	x.typ = types.Typ[types.Bool]
 }
 
 // logical handles logical operators (&&, ||).
 func (c *Checker) logical(x, y *operand, op syntax.Token) {
+	wasConst := x.mode == constant_ && y.mode == constant_
+
 	if !isBoolean(x.typ) || !isBoolean(y.typ) {
 		c.errorf(x.pos, "operator %s requires boolean operands", op)
 		x.mode = invalid
+		return
+	}
+
+	if wasConst {
+		x.val = c.evalLogical(x.val, y.val, op)
+		x.mode = constant_
+		x.typ = types.Typ[types.UntypedBool]
 		return
 	}
 
@@ -265,33 +287,33 @@ func (c *Checker) logical(x, y *operand, op syntax.Token) {
 	} else {
 		x.typ = types.Typ[types.Bool]
 	}
-
-	// Constant folding
-	if x.mode == constant_ && y.mode == constant_ {
-		x.val = c.evalLogical(x.val, y.val, op)
-		x.mode = constant_
-	}
 }
 
 // arithmetic handles arithmetic operators (+, -, *, /, %, etc.).
 func (c *Checker) arithmetic(x, y *operand, op syntax.Token) {
+	wasConst := x.mode == constant_ && y.mode == constant_
+
 	// String concatenation
 	if isStringType(x.typ) && isStringType(y.typ) {
-		if op == syntax.Token(36) { // _Add
-			x.mode = value
-			if types.IsUntypedType(x.typ) && types.IsUntypedType(y.typ) {
-				x.typ = types.Typ[types.UntypedString]
-			} else {
-				x.typ = types.Typ[types.String]
-			}
-			if x.mode == constant_ && y.mode == constant_ {
-				x.val = constant.BinaryOp(x.val, 12, y.val) // token.ADD
-				x.mode = constant_
-			}
+		if !op.IsAdd() {
+			c.errorf(x.pos, "operator %s not defined for strings", op)
+			x.mode = invalid
 			return
 		}
-		c.errorf(x.pos, "operator %s not defined for strings", op)
-		x.mode = invalid
+
+		if wasConst {
+			x.val = constant.BinaryOp(x.val, token.ADD, y.val)
+			x.mode = constant_
+			x.typ = types.Typ[types.UntypedString]
+			return
+		}
+
+		x.mode = value
+		if types.IsUntypedType(x.typ) && types.IsUntypedType(y.typ) {
+			x.typ = types.Typ[types.UntypedString]
+		} else {
+			x.typ = types.Typ[types.String]
+		}
 		return
 	}
 
@@ -303,7 +325,7 @@ func (c *Checker) arithmetic(x, y *operand, op syntax.Token) {
 	}
 
 	// Check for % on floats
-	if op == syntax.Token(44) { // _Rem
+	if op.IsRem() {
 		if isFloat(x.typ) || isFloat(y.typ) {
 			c.errorf(x.pos, "operator %% not defined for float")
 			x.mode = invalid
@@ -333,8 +355,7 @@ func (c *Checker) arithmetic(x, y *operand, op syntax.Token) {
 		}
 	}
 
-	// Constant folding
-	if x.mode == constant_ && y.mode == constant_ {
+	if wasConst {
 		x.val = c.evalArithmetic(x.val, y.val, op)
 		x.mode = constant_
 	}
@@ -342,6 +363,10 @@ func (c *Checker) arithmetic(x, y *operand, op syntax.Token) {
 
 // comparable reports whether x and y can be compared.
 func (c *Checker) comparable(x, y *operand) bool {
+	if x.typ == nil || y.typ == nil {
+		return false
+	}
+
 	// nil can be compared to any pointer or ref type
 	if x.isNil() && types.IsPointerOrRef(y.typ) {
 		return true
@@ -360,28 +385,78 @@ func (c *Checker) comparable(x, y *operand) bool {
 
 // Helper functions for type checking
 func isBoolean(t types.Type) bool {
+	if t == nil {
+		return false
+	}
 	b, ok := t.Underlying().(*types.Basic)
 	return ok && b.Info()&types.IsBoolean != 0
 }
 
 func isNumeric(t types.Type) bool {
+	if t == nil {
+		return false
+	}
 	b, ok := t.Underlying().(*types.Basic)
 	return ok && b.Info()&types.IsNumeric != 0
 }
 
 func isInteger(t types.Type) bool {
+	if t == nil {
+		return false
+	}
 	b, ok := t.Underlying().(*types.Basic)
-	return ok && b.Info()&types.IsInteger != 0
+	return ok && (b.Kind() == types.Int || b.Kind() == types.UntypedInt)
 }
 
 func isFloat(t types.Type) bool {
+	if t == nil {
+		return false
+	}
 	b, ok := t.Underlying().(*types.Basic)
-	return ok && b.Info()&types.IsFloat != 0
+	return ok && (b.Kind() == types.Float || b.Kind() == types.UntypedFloat)
 }
 
 func isStringType(t types.Type) bool {
+	if t == nil {
+		return false
+	}
 	b, ok := t.Underlying().(*types.Basic)
 	return ok && b.Info()&types.IsString != 0
+}
+
+// isAddressOfLocal reports whether &expr is allowed by Yoru's stack-pointer rule.
+// *T values may only be created from local stack-backed lvalues.
+func (c *Checker) isAddressOfLocal(e syntax.Expr) bool {
+	switch e := e.(type) {
+	case *syntax.Name:
+		obj := c.lookup(e.Value)
+		v, ok := obj.(*types.Var)
+		if !ok {
+			return false
+		}
+		parent := v.Parent()
+		return parent != nil && parent != c.pkg.Scope()
+
+	case *syntax.ParenExpr:
+		return c.isAddressOfLocal(e.X)
+
+	case *syntax.SelectorExpr:
+		var base operand
+		c.expr(&base, e.X)
+		if base.mode == invalid || types.IsRef(base.typ) {
+			return false
+		}
+		return c.isAddressOfLocal(e.X)
+
+	case *syntax.IndexExpr:
+		var base operand
+		c.expr(&base, e.X)
+		if base.mode == invalid || types.IsRef(base.typ) {
+			return false
+		}
+		return c.isAddressOfLocal(e.X)
+	}
+	return false
 }
 
 // index evaluates an index expression x[i].
@@ -646,6 +721,21 @@ func (c *Checker) assignment(x *operand, T types.Type, context string) {
 	if x.mode == invalid {
 		return
 	}
+	if T == nil {
+		c.errorf(x.pos, "internal error: missing target type in %s", context)
+		x.mode = invalid
+		return
+	}
+	if x.mode == novalue {
+		c.errorf(x.pos, "cannot use no-value expression in %s", context)
+		x.mode = invalid
+		return
+	}
+	if x.typ == nil {
+		c.errorf(x.pos, "cannot use expression with unknown type in %s", context)
+		x.mode = invalid
+		return
+	}
 
 	// Check ref T -> *T conversion (forbidden)
 	if types.IsPointer(T) && types.IsRef(x.typ) {
@@ -668,25 +758,11 @@ func (c *Checker) assignment(x *operand, T types.Type, context string) {
 
 // Constant evaluation helpers
 func (c *Checker) evalComparison(x, y constant.Value, op syntax.Token) constant.Value {
-	// Map syntax tokens to constant comparison tokens
-	var cmp int
-	switch op.String() {
-	case "==":
-		return constant.MakeBool(constant.Compare(x, 0, y)) // token.EQL
-	case "!=":
-		return constant.MakeBool(!constant.Compare(x, 0, y))
-	case "<":
-		cmp = -1
-		return constant.MakeBool(constant.Compare(x, 40, y)) // token.LSS
-	case "<=":
-		return constant.MakeBool(constant.Compare(x, 43, y)) // token.LEQ
-	case ">":
-		return constant.MakeBool(constant.Compare(x, 41, y)) // token.GTR
-	case ">=":
-		return constant.MakeBool(constant.Compare(x, 44, y)) // token.GEQ
+	goTok, ok := toGoToken(op)
+	if !ok {
+		return constant.MakeBool(false)
 	}
-	_ = cmp
-	return constant.MakeBool(false)
+	return constant.MakeBool(constant.Compare(x, goTok, y))
 }
 
 func (c *Checker) evalLogical(x, y constant.Value, op syntax.Token) constant.Value {
@@ -702,17 +778,51 @@ func (c *Checker) evalLogical(x, y constant.Value, op syntax.Token) constant.Val
 }
 
 func (c *Checker) evalArithmetic(x, y constant.Value, op syntax.Token) constant.Value {
-	switch strings.TrimSpace(op.String()) {
-	case "+":
-		return constant.BinaryOp(x, 12, y) // token.ADD
-	case "-":
-		return constant.BinaryOp(x, 13, y) // token.SUB
-	case "*":
-		return constant.BinaryOp(x, 14, y) // token.MUL
-	case "/":
-		return constant.BinaryOp(x, 15, y) // token.QUO
-	case "%":
-		return constant.BinaryOp(x, 16, y) // token.REM
+	goTok, ok := toGoToken(op)
+	if !ok {
+		return nil
 	}
-	return nil
+	return constant.BinaryOp(x, goTok, y)
+}
+
+func toGoToken(op syntax.Token) (token.Token, bool) {
+	switch op.String() {
+	case "||":
+		return token.LOR, true
+	case "&&":
+		return token.LAND, true
+	case "==":
+		return token.EQL, true
+	case "!=":
+		return token.NEQ, true
+	case "<":
+		return token.LSS, true
+	case "<=":
+		return token.LEQ, true
+	case ">":
+		return token.GTR, true
+	case ">=":
+		return token.GEQ, true
+	case "+":
+		return token.ADD, true
+	case "-":
+		return token.SUB, true
+	case "*":
+		return token.MUL, true
+	case "/":
+		return token.QUO, true
+	case "%":
+		return token.REM, true
+	case "|":
+		return token.OR, true
+	case "^":
+		return token.XOR, true
+	case "&":
+		return token.AND, true
+	case "<<":
+		return token.SHL, true
+	case ">>":
+		return token.SHR, true
+	}
+	return token.ILLEGAL, false
 }

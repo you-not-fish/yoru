@@ -1,6 +1,7 @@
 package types2
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 
@@ -67,6 +68,22 @@ func expectErrors(t *testing.T, src string, expectedMsgs ...string) {
 			t.Errorf("expected error containing %q, got:\n%s", msg, errText)
 		}
 	}
+}
+
+// expectErrorAtLine checks that at least one type error contains both line number and message.
+func expectErrorAtLine(t *testing.T, src string, line int, expectedMsg string) {
+	t.Helper()
+	_, errs := parseAndCheck(src)
+	if len(errs) == 0 {
+		t.Fatalf("expected error at line %d containing %q, got none", line, expectedMsg)
+	}
+	wantLine := "test.yoru:" + strconv.Itoa(line) + ":"
+	for _, err := range errs {
+		if strings.Contains(err, wantLine) && strings.Contains(err, expectedMsg) {
+			return
+		}
+	}
+	t.Fatalf("expected error at line %d containing %q, got:\n%s", line, expectedMsg, strings.Join(errs, "\n"))
 }
 
 func TestBasicDeclarations(t *testing.T) {
@@ -308,10 +325,12 @@ type Bad struct {
 `, "duplicate field")
 }
 
-// TestArrayNegativeLength is skipped - requires constant expression evaluation
-// for binary operations in array length, which isn't fully implemented.
 func TestArrayNegativeLength(t *testing.T) {
-	t.Skip("constant expression evaluation for array lengths not fully implemented")
+	expectErrors(t, `
+	package main
+
+	var arr [-1]int
+	`, "array length must be non-negative")
 }
 
 func TestArrayNonConstantLength(t *testing.T) {

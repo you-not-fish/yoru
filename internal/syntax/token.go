@@ -207,6 +207,45 @@ func (t Token) IsAssign() bool {
 	return t == _Assign
 }
 
+// IsComparison reports whether t is a comparison operator.
+func (t Token) IsComparison() bool {
+	switch t {
+	case _Eql, _Neq, _Lss, _Leq, _Gtr, _Geq:
+		return true
+	}
+	return false
+}
+
+// IsEquality reports whether t is == or !=.
+func (t Token) IsEquality() bool {
+	return t == _Eql || t == _Neq
+}
+
+// IsLogical reports whether t is && or ||.
+func (t Token) IsLogical() bool {
+	return t == _AndAnd || t == _OrOr
+}
+
+// IsAdd reports whether t is +.
+func (t Token) IsAdd() bool {
+	return t == _Add
+}
+
+// IsRem reports whether t is %.
+func (t Token) IsRem() bool {
+	return t == _Rem
+}
+
+// IsBreak reports whether t is break.
+func (t Token) IsBreak() bool {
+	return t == _Break
+}
+
+// IsContinue reports whether t is continue.
+func (t Token) IsContinue() bool {
+	return t == _Continue
+}
+
 // Exported operator tokens for type checker access
 const (
 	Not Token = _Not // !

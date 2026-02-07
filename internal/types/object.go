@@ -4,13 +4,13 @@ import "github.com/you-not-fish/yoru/internal/syntax"
 
 // Object represents a declared entity: variable, type, function, builtin, or nil.
 type Object interface {
-	Name() string       // object name
-	Type() Type         // object type
-	Pos() syntax.Pos    // declaration position
-	Parent() *Scope     // enclosing scope
+	Name() string    // object name
+	Type() Type      // object type
+	Pos() syntax.Pos // declaration position
+	Parent() *Scope  // enclosing scope
 
-	setParent(*Scope)   // internal: set parent scope
-	aObject()           // marker method to restrict implementations
+	setParent(*Scope) // internal: set parent scope
+	aObject()         // marker method to restrict implementations
 }
 
 // object is the base struct for all objects.
@@ -21,12 +21,12 @@ type object struct {
 	parent *Scope
 }
 
-func (o *object) Name() string     { return o.name }
-func (o *object) Type() Type       { return o.typ }
-func (o *object) Pos() syntax.Pos  { return o.pos }
-func (o *object) Parent() *Scope   { return o.parent }
+func (o *object) Name() string       { return o.name }
+func (o *object) Type() Type         { return o.typ }
+func (o *object) Pos() syntax.Pos    { return o.pos }
+func (o *object) Parent() *Scope     { return o.parent }
 func (o *object) setParent(s *Scope) { o.parent = s }
-func (*object) aObject()           {}
+func (*object) aObject()             {}
 
 // Var represents a variable or struct field.
 type Var struct {
@@ -63,6 +63,12 @@ type TypeName struct {
 // NewTypeName creates a new type name object.
 func NewTypeName(pos syntax.Pos, name string, typ Type) *TypeName {
 	return &TypeName{object: object{name: name, typ: typ, pos: pos}}
+}
+
+// SetType sets the type associated with the type name.
+// This is used during type checking once the declaration is resolved.
+func (t *TypeName) SetType(typ Type) {
+	t.typ = typ
 }
 
 // FuncObj represents a declared function or method.

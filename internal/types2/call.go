@@ -162,6 +162,11 @@ func (c *Checker) checkCallArgs(e *syntax.CallExpr, sig *types.Func) []*operand 
 		if args[i].mode == invalid {
 			continue
 		}
+		if args[i].mode == novalue {
+			c.errorf(arg.Pos(), "cannot use no-value expression as argument")
+			args[i].mode = invalid
+			continue
+		}
 
 		if i < expected {
 			param := sig.Param(i)
@@ -217,6 +222,10 @@ func (c *Checker) builtinPrintln(x *operand, e *syntax.CallExpr) {
 		if a.mode == invalid {
 			continue
 		}
+		if a.mode == novalue {
+			c.errorf(arg.Pos(), "cannot print no-value expression")
+			continue
+		}
 
 		// Check that argument is printable
 		if !c.isPrintable(a.typ) {
@@ -230,6 +239,9 @@ func (c *Checker) builtinPrintln(x *operand, e *syntax.CallExpr) {
 
 // isPrintable reports whether a type can be printed.
 func (c *Checker) isPrintable(t types.Type) bool {
+	if t == nil {
+		return false
+	}
 	switch t := t.Underlying().(type) {
 	case *types.Basic:
 		// All basic types are printable

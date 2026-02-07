@@ -37,7 +37,13 @@ func (c *Checker) typeName(x *operand, name *syntax.Name) {
 
 	switch obj := obj.(type) {
 	case *types.TypeName:
-		x.typ = obj.Type()
+		if typ := obj.Type(); typ != nil {
+			x.typ = typ
+			return
+		}
+		c.errorf(name.Pos(), "invalid type %s", name.Value)
+		x.mode = invalid
+		return
 	case *types.Builtin:
 		// new is used as new(T), not as a type
 		c.errorf(name.Pos(), "%s is not a type", name.Value)

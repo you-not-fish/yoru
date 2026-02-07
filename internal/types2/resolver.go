@@ -25,9 +25,14 @@ func (c *Checker) collectDecls(decls []syntax.Decl) {
 
 // collectTypeDecl collects a type declaration.
 func (c *Checker) collectTypeDecl(decl *syntax.TypeDecl) {
-	// Create a TypeName object with nil underlying type
-	// The underlying type will be resolved in checkTypeDecl
+	// Create a TypeName with a named placeholder for forward references.
 	obj := types.NewTypeName(decl.Name.Pos(), decl.Name.Value, nil)
+
+	// Create a named placeholder immediately
+	// so recursive types (e.g. struct fields pointing to the same named type)
+	// can resolve before the underlying type is finalized.
+	types.NewNamed(obj, nil)
+
 	c.declare(decl.Name, obj)
 }
 
@@ -42,12 +47,12 @@ func (c *Checker) collectVarDecl(decl *syntax.VarDecl) {
 // collectFuncDecl collects a function declaration.
 func (c *Checker) collectFuncDecl(decl *syntax.FuncDecl) {
 	name := decl.Name.Value
+	obj := types.NewFuncObj(decl.Name.Pos(), name)
+	c.funcDecls[decl] = obj
 
-	// For methods, we need special handling
+	// Methods are attached to their receiver type; they are not package-scope
+	// declarations and therefore are not inserted into the package scope.
 	if decl.Recv != nil {
-		// Methods are added to the receiver type later
-		// For now, just create a FuncObj
-		obj := types.NewFuncObj(decl.Name.Pos(), name)
 		if c.info != nil {
 			c.info.Defs[decl.Name] = obj
 		}
@@ -55,7 +60,6 @@ func (c *Checker) collectFuncDecl(decl *syntax.FuncDecl) {
 	}
 
 	// Regular function
-	obj := types.NewFuncObj(decl.Name.Pos(), name)
 	c.declare(decl.Name, obj)
 }
 
@@ -75,7 +79,7 @@ func (c *Checker) resolve(name *syntax.Name) types.Object {
 func (c *Checker) resolveType(e syntax.Expr) types.Type {
 	var x operand
 	c.typExpr(&x, e)
-	if x.mode == invalid {
+	if x.mode == invalid || x.mode != typexpr || x.typ == nil {
 		return nil
 	}
 	return x.typ

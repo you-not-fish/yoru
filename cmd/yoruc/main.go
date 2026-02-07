@@ -412,7 +412,11 @@ func printTypedDecl(decl syntax.Decl, info *types2.Info, indent string) {
 	case *syntax.TypeDecl:
 		fmt.Printf("%sTypeDecl\n", indent)
 		if obj := info.Defs[d.Name]; obj != nil {
-			fmt.Printf("%s  Name: %s (%s)\n", indent, d.Name.Value, obj.Type())
+			if obj.Type() != nil {
+				fmt.Printf("%s  Name: %s (%s)\n", indent, d.Name.Value, obj.Type())
+			} else {
+				fmt.Printf("%s  Name: %s\n", indent, d.Name.Value)
+			}
 		} else {
 			fmt.Printf("%s  Name: %s\n", indent, d.Name.Value)
 		}
@@ -433,7 +437,11 @@ func printTypedDecl(decl syntax.Decl, info *types2.Info, indent string) {
 	case *syntax.FuncDecl:
 		fmt.Printf("%sFuncDecl\n", indent)
 		if obj := info.Defs[d.Name]; obj != nil {
-			fmt.Printf("%s  Name: %s (%s)\n", indent, d.Name.Value, obj.Type())
+			if obj.Type() != nil {
+				fmt.Printf("%s  Name: %s (%s)\n", indent, d.Name.Value, obj.Type())
+			} else {
+				fmt.Printf("%s  Name: %s\n", indent, d.Name.Value)
+			}
 		} else {
 			fmt.Printf("%s  Name: %s\n", indent, d.Name.Value)
 		}
@@ -522,64 +530,73 @@ func printTypedStmt(stmt syntax.Stmt, info *types2.Info, indent string) {
 
 // printTypedExpr outputs an expression with type annotations.
 func printTypedExpr(expr syntax.Expr, info *types2.Info) {
+	fmt.Print(typedExprString(expr, info))
+}
+
+func typedExprString(expr syntax.Expr, info *types2.Info) string {
 	tv, ok := info.Types[expr]
+	typ := ""
+	if ok {
+		switch {
+		case tv.Type != nil:
+			typ = fmt.Sprintf(" (%s)", tv.Type)
+		case tv.IsVoid():
+			typ = " (void)"
+		case tv.IsBuiltin():
+			typ = " (builtin)"
+		}
+	}
 
 	switch e := expr.(type) {
 	case *syntax.Name:
-		if ok && tv.Type != nil {
-			fmt.Printf("Name %q (%s)", e.Value, tv.Type)
-		} else {
-			fmt.Printf("Name %q", e.Value)
-		}
-
+		return fmt.Sprintf("Name %q%s", e.Value, typ)
 	case *syntax.BasicLit:
-		if ok && tv.Type != nil {
-			fmt.Printf("BasicLit %q (%s)", e.Value, tv.Type)
-		} else {
-			fmt.Printf("BasicLit %q", e.Value)
-		}
-
+		return fmt.Sprintf("BasicLit %q%s", e.Value, typ)
 	case *syntax.Operation:
-		if ok && tv.Type != nil {
-			fmt.Printf("Operation %s (%s)", e.Op, tv.Type)
-		} else {
-			fmt.Printf("Operation %s", e.Op)
+		if e.Y == nil {
+			return fmt.Sprintf("Operation %s%s [X=%s]", e.Op, typ, typedExprString(e.X, info))
 		}
-
+		return fmt.Sprintf("Operation %s%s [X=%s, Y=%s]", e.Op, typ, typedExprString(e.X, info), typedExprString(e.Y, info))
 	case *syntax.CallExpr:
-		if ok && tv.Type != nil {
-			fmt.Printf("CallExpr (%s)", tv.Type)
-		} else {
-			fmt.Printf("CallExpr (void)")
+		args := make([]string, len(e.Args))
+		for i, arg := range e.Args {
+			args[i] = typedExprString(arg, info)
 		}
-
+		return fmt.Sprintf("CallExpr%s [Fun=%s, Args=[%s]]", typ, typedExprString(e.Fun, info), strings.Join(args, ", "))
 	case *syntax.IndexExpr:
-		if ok && tv.Type != nil {
-			fmt.Printf("IndexExpr (%s)", tv.Type)
-		} else {
-			fmt.Printf("IndexExpr")
-		}
-
+		return fmt.Sprintf("IndexExpr%s [X=%s, Index=%s]", typ, typedExprString(e.X, info), typedExprString(e.Index, info))
 	case *syntax.SelectorExpr:
-		if ok && tv.Type != nil {
-			fmt.Printf("SelectorExpr .%s (%s)", e.Sel.Value, tv.Type)
-		} else {
-			fmt.Printf("SelectorExpr .%s", e.Sel.Value)
-		}
-
+		return fmt.Sprintf("SelectorExpr .%s%s [X=%s]", e.Sel.Value, typ, typedExprString(e.X, info))
+	case *syntax.ParenExpr:
+		return fmt.Sprintf("ParenExpr%s [X=%s]", typ, typedExprString(e.X, info))
 	case *syntax.NewExpr:
-		if ok && tv.Type != nil {
-			fmt.Printf("NewExpr (%s)", tv.Type)
-		} else {
-			fmt.Printf("NewExpr")
+		return fmt.Sprintf("NewExpr%s [Type=%s]", typ, typedExprString(e.Type, info))
+	case *syntax.CompositeLit:
+		elems := make([]string, len(e.Elems))
+		for i, elem := range e.Elems {
+			elems[i] = typedExprString(elem, info)
 		}
-
+		return fmt.Sprintf("CompositeLit%s [Type=%s, Elems=[%s]]", typ, typedExprString(e.Type, info), strings.Join(elems, ", "))
+	case *syntax.KeyValueExpr:
+		return fmt.Sprintf("KeyValueExpr%s [Key=%s, Value=%s]", typ, typedExprString(e.Key, info), typedExprString(e.Value, info))
+	case *syntax.ArrayType:
+		return fmt.Sprintf("ArrayType%s [Len=%s, Elem=%s]", typ, typedExprString(e.Len, info), typedExprString(e.Elem, info))
+	case *syntax.PointerType:
+		return fmt.Sprintf("PointerType%s [Base=%s]", typ, typedExprString(e.Base, info))
+	case *syntax.RefType:
+		return fmt.Sprintf("RefType%s [Base=%s]", typ, typedExprString(e.Base, info))
+	case *syntax.StructType:
+		fields := make([]string, len(e.Fields))
+		for i, f := range e.Fields {
+			name := ""
+			if f.Name != nil {
+				name = f.Name.Value + " "
+			}
+			fields[i] = name + typedExprString(f.Type, info)
+		}
+		return fmt.Sprintf("StructType%s [Fields=[%s]]", typ, strings.Join(fields, ", "))
 	default:
-		if ok && tv.Type != nil {
-			fmt.Printf("%T (%s)", expr, tv.Type)
-		} else {
-			fmt.Printf("%T", expr)
-		}
+		return fmt.Sprintf("%T%s", expr, typ)
 	}
 }
 

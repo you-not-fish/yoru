@@ -169,13 +169,13 @@ func isBoolean(T Type) bool {
 // isInteger reports whether T is an integer type.
 func isInteger(T Type) bool {
 	b, ok := T.Underlying().(*Basic)
-	return ok && b.info&IsInteger != 0
+	return ok && (b.kind == Int || b.kind == UntypedInt)
 }
 
 // isFloat reports whether T is a floating-point type.
 func isFloat(T Type) bool {
 	b, ok := T.Underlying().(*Basic)
-	return ok && b.info&IsFloat != 0
+	return ok && (b.kind == Float || b.kind == UntypedFloat)
 }
 
 // isNumeric reports whether T is a numeric type (integer or float).

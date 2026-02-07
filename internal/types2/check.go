@@ -16,12 +16,19 @@ type Checker struct {
 	pos   syntax.Pos   // current position (for error reporting)
 
 	// Function context
-	funcSig   *types.Func // current function signature
-	hasReturn bool        // whether the function has an explicit return
+	funcSig *types.Func // current function signature
+
+	// Control-flow context
+	loopDepth int // nested loop depth (for break/continue validation)
+
+	// Declaration objects keyed by AST node.
+	// Methods are not in package scope, so they must be tracked separately.
+	// Lifecycle: allocated per Check invocation and used only while checking one file.
+	funcDecls map[*syntax.FuncDecl]*types.FuncObj
 
 	// Error tracking
-	errors int         // error count
-	first  *TypeError  // first error
+	errors int        // error count
+	first  *TypeError // first error
 }
 
 // checkFile type-checks a single file.
@@ -43,9 +50,23 @@ func (c *Checker) checkFile(file *syntax.File) {
 	c.collectDecls(file.Decls)
 
 	// Phase 2: Check type declarations (resolve underlying types)
+	var typeDecls []*syntax.TypeDecl
 	for _, decl := range file.Decls {
 		if td, ok := decl.(*syntax.TypeDecl); ok {
-			c.checkTypeDecl(td)
+			typeDecls = append(typeDecls, td)
+		}
+	}
+	// Run multiple passes so forward aliases can settle to final types.
+	// Example: type A = B; type B = int
+	for pass := 0; pass < len(typeDecls); pass++ {
+		changed := false
+		for _, td := range typeDecls {
+			if c.checkTypeDecl(td) {
+				changed = true
+			}
+		}
+		if !changed {
+			break
 		}
 	}
 

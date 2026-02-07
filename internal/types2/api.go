@@ -103,8 +103,9 @@ func Check(filename string, file *syntax.File, conf *Config, info *Info) (*types
 	}
 
 	c := &Checker{
-		conf: conf,
-		info: info,
+		conf:      conf,
+		info:      info,
+		funcDecls: make(map[*syntax.FuncDecl]*types.FuncObj),
 	}
 
 	c.checkFile(file)

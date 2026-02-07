@@ -93,6 +93,11 @@ func (c *Checker) ifStmt(s *syntax.IfStmt) {
 func (c *Checker) forStmt(s *syntax.ForStmt) {
 	// Open a scope for the loop
 	c.openScope(s.Body, "for")
+	c.loopDepth++
+	defer func() {
+		c.loopDepth--
+		c.closeScope()
+	}()
 
 	// Check condition
 	if s.Cond != nil {
@@ -105,14 +110,10 @@ func (c *Checker) forStmt(s *syntax.ForStmt) {
 
 	// Check body
 	c.stmts(s.Body.Stmts)
-
-	c.closeScope()
 }
 
 // returnStmt checks a return statement.
 func (c *Checker) returnStmt(s *syntax.ReturnStmt) {
-	c.hasReturn = true
-
 	if c.funcSig == nil {
 		c.errorf(s.Pos(), "return statement outside function")
 		return
@@ -149,9 +150,18 @@ func (c *Checker) returnStmt(s *syntax.ReturnStmt) {
 
 // branchStmt checks a break or continue statement.
 func (c *Checker) branchStmt(s *syntax.BranchStmt) {
-	// In Yoru, break and continue are only valid inside for loops
-	// Full validation would require tracking loop context
-	// For now, just accept them
+	if c.loopDepth > 0 {
+		return
+	}
+	if s.Tok.IsBreak() {
+		c.errorf(s.Pos(), "break not in for loop")
+		return
+	}
+	if s.Tok.IsContinue() {
+		c.errorf(s.Pos(), "continue not in for loop")
+		return
+	}
+	c.errorf(s.Pos(), "unexpected branch statement")
 }
 
 // declStmt checks a declaration statement (var inside function body).
@@ -180,6 +190,10 @@ func (c *Checker) localVarDecl(decl *syntax.VarDecl) {
 	if decl.Value != nil {
 		c.expr(&val, decl.Value)
 		if val.mode == invalid {
+			return
+		}
+		if val.mode == novalue {
+			c.errorf(decl.Value.Pos(), "cannot use no-value expression as variable initializer")
 			return
 		}
 
@@ -237,6 +251,10 @@ func (c *Checker) shortVarDecl(lhs syntax.Expr, rhs syntax.Expr) {
 	if val.mode == invalid {
 		return
 	}
+	if val.mode == novalue {
+		c.errorf(rhs.Pos(), "cannot use no-value expression in := declaration")
+		return
+	}
 
 	// Determine type
 	typ := val.typ
@@ -259,6 +277,10 @@ func (c *Checker) regularAssign(lhs syntax.Expr, rhs syntax.Expr) {
 	if left.mode == invalid || right.mode == invalid {
 		return
 	}
+	if right.mode == novalue {
+		c.errorf(rhs.Pos(), "cannot assign no-value expression")
+		return
+	}
 
 	// Check that lhs is assignable
 	if left.mode != variable {
@@ -273,4 +295,39 @@ func (c *Checker) regularAssign(lhs syntax.Expr, rhs syntax.Expr) {
 
 	// Check assignment compatibility
 	c.assignment(&right, left.typ, "assignment")
+}
+
+// blockMustReturn reports whether all control-flow paths in this statement list return.
+// This is conservative: loops are treated as potentially non-terminating paths.
+// Yoru syntax rejects bare "for { ... }", so we don't model infinite-loop proofs here.
+func (c *Checker) blockMustReturn(stmts []syntax.Stmt) bool {
+	for _, s := range stmts {
+		if c.stmtMustReturn(s) {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *Checker) stmtMustReturn(s syntax.Stmt) bool {
+	switch s := s.(type) {
+	case *syntax.ReturnStmt:
+		return true
+	case *syntax.BlockStmt:
+		return c.blockMustReturn(s.Stmts)
+	case *syntax.IfStmt:
+		if s.Else == nil {
+			return false
+		}
+		thenReturns := c.blockMustReturn(s.Then.Stmts)
+		switch els := s.Else.(type) {
+		case *syntax.BlockStmt:
+			return thenReturns && c.blockMustReturn(els.Stmts)
+		case *syntax.IfStmt:
+			return thenReturns && c.stmtMustReturn(els)
+		default:
+			return false
+		}
+	}
+	return false
 }
