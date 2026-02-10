@@ -498,19 +498,79 @@ yoru/
 
 ### Phase 4：SSA 生成（第 14-19 周）
 
+> **实现策略**：Alloca-first approach —— 先生成 alloca/load/store 形式，再由 mem2reg 提升为 SSA φ 形式。
+> 分为 4 个子阶段：4A（基础设施）→ 4B（AST→SSA lowering）→ 4C（支配树 & mem2reg）→ 4D（优化 passes）。
+
+#### Phase 4A：SSA 基础设施
+
 ```
 任务：
-- [ ] SSA 数据结构：Func/Block/Value
-- [ ] CFG 构建 + dominance（Cooper 算法）
-- [ ] mem2reg 或显式 Phi 插入（选一种先跑通）
-- [ ] Typed AST → SSA 转换
-- [ ] 复合值含 ref 的标量化（field-splitting/SROA）；无法标量化则强制 heap 分配
-- [ ] SSA Op 纯度标记：IsPure() 属性区分纯值 vs 副作用指令
-- [ ] SSA 验证器（必须）：
-    - 所有 Value 有 type（不得为 nil）
-    - 每个 block 必须以 terminator 结尾
-    - phi 参数数量必须等于 preds 数量
-    - dominance/uses 基本一致性检查
+- [ ] SSA 数据结构：Func/Block/Value（value.go, block.go, func.go）
+- [ ] Op 枚举 + OpInfo 表，含 IsPure 标记（op.go）
+- [ ] SSA 文本格式打印器（print.go）
+- [ ] 基础验证器：nil type、terminator、phi args、边一致性（verify.go）
+- [ ] CLI：接入 -emit-ssa 占位（实际 pipeline 在 4B 接入）
+
+可测试/可观测：
+- [ ] 手动构建 SSA 函数并打印
+- [ ] 验证器能捕获 7+ 种结构错误
+- [ ] OpInfo 的 IsPure 分类正确
+
+验收：
+- [ ] go test ./internal/ssa/... 全绿
+- [ ] 打印格式稳定（golden test）
+- [ ] 验证器错误测试全部通过
+```
+
+#### Phase 4B：AST→SSA Lowering（alloca 形式）
+
+```
+任务：
+- [ ] Typed AST → alloca-based SSA 转换（build.go）
+- [ ] 表达式 lowering：字面量、二元/一元运算、调用、选择器、索引、new、复合字面量
+- [ ] 语句 lowering：赋值、变量声明、if/else（CFG 分裂）、for（回边）、return、break/continue
+- [ ] 方法调用 lowering、内建函数处理
+- [ ] 端到端：parse → typecheck → SSA → print
+
+可测试/可观测：
+- [ ] `-emit-ssa`：完整 pipeline 输出 alloca 形式 SSA
+- [ ] `-dump-func=<name>`：只 dump 某个函数
+- [ ] golden：*.ssa.golden
+
+验收：
+- [ ] fib/循环/函数调用能生成 SSA 且 verify 通过
+- [ ] 所有表达式/语句类型都有 lowering 覆盖
+```
+
+#### Phase 4C：支配树 & mem2reg
+
+```
+任务：
+- [ ] Cooper 支配算法（dom.go）
+- [ ] 支配边界计算
+- [ ] mem2reg pass：提升 alloca 为 SSA 寄存器、插入 phi、重命名变量（passes/mem2reg.go）
+- [ ] 带支配检查的完整验证器
+- [ ] Pass 基础设施：-dump-before / -dump-after
+
+可测试/可观测：
+- [ ] `-ssa-verify`：每次 pass 前后都 verify
+- [ ] golden：mem2reg 前后对比
+
+验收：
+- [ ] mem2reg 后 alloca 数量显著减少
+- [ ] phi 参数数量等于 preds 数量
+- [ ] 支配关系一致性检查通过
+```
+
+#### Phase 4D：优化 Passes & SROA
+
+```
+任务：
+- [ ] DCE（passes/deadcode.go）
+- [ ] Block-local CSE + IsPure 硬性过滤（passes/cse.go）
+- [ ] 常量传播/折叠（passes/constprop.go）
+- [ ] 复合值 SROA（passes/sroa.go）
+- [ ] `-ssa-stats`：每个函数输出 block 数、value 数、phi 数、call 数
 
 ⚠️ SSA Pass 纯度约束：
 - Pure 值优化：只对无副作用的 Value 做（整型算术、比较、phi、cast）
@@ -519,15 +579,14 @@ yoru/
 - CSE 必须满足**支配关系**；v1 仅做 basic block 内的 CSE（最安全）
 
 可测试/可观测：
-- [ ] `-emit-ssa`：支持只 dump 某个函数 `-dump-func=<name>`
-- [ ] `-ssa-verify`：每次 pass 前后都 verify（debug 时强制开启）
-- [ ] `-ssa-stats`：每个函数输出 block 数、value 数、phi 数、call 数
-- [ ] golden：*.ssa.golden
+- [ ] golden：优化前后对比
+- [ ] `-ssa-stats` 统计正确
 
 验收：
-- [ ] fib/循环/函数调用都能生成 SSA 且 verify 通过
-- [ ] 3 个"SSA 结构错误"回归用例（确保 verifier 能抓错）
+- [ ] DCE 能消除未使用的纯值
 - [ ] CSE 不会合并副作用指令
+- [ ] 常量折叠正确
+- [ ] SROA 能拆分简单 struct
 
 参考：Go 源码 cmd/compile/internal/ssa/
 ```

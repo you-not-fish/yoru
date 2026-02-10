@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/you-not-fish/yoru/internal/ssa"
 	"github.com/you-not-fish/yoru/internal/syntax"
 	"github.com/you-not-fish/yoru/internal/types"
 	"github.com/you-not-fish/yoru/internal/types2"
@@ -85,6 +86,11 @@ func main() {
 	// Handle -emit-layout
 	if *emitLayout {
 		os.Exit(runEmitLayout(filename))
+	}
+
+	// Handle -emit-ssa
+	if *emitSSA {
+		os.Exit(runEmitSSA(filename))
 	}
 
 	// TODO: Implement rest of compilation pipeline
@@ -700,5 +706,81 @@ func runEmitLayout(filename string) int {
 	if len(typeErrs) > 0 {
 		return 1
 	}
+	return 0
+}
+
+// runEmitSSA parses, type-checks, and outputs SSA for all functions.
+func runEmitSSA(filename string) int {
+	f, err := os.Open(filename)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		return 1
+	}
+	defer f.Close()
+
+	var parseErrs []string
+	parseErrh := func(pos syntax.Pos, msg string) {
+		parseErrs = append(parseErrs, fmt.Sprintf("%s: %s", pos, msg))
+	}
+
+	p := syntax.NewParser(filename, f, parseErrh)
+	if *noASI {
+		p.SetASIEnabled(false)
+	}
+	ast := p.Parse()
+
+	for _, e := range parseErrs {
+		fmt.Fprintln(os.Stderr, e)
+	}
+	if len(parseErrs) > 0 {
+		return 1
+	}
+
+	// Type check.
+	var typeErrs []string
+	typeErrh := func(pos syntax.Pos, msg string) {
+		typeErrs = append(typeErrs, fmt.Sprintf("%s: %s", pos, msg))
+	}
+
+	conf := &types2.Config{
+		Error: typeErrh,
+		Sizes: types.DefaultSizes,
+	}
+	info := &types2.Info{
+		Types:  make(map[syntax.Expr]types2.TypeAndValue),
+		Defs:   make(map[*syntax.Name]types.Object),
+		Uses:   make(map[*syntax.Name]types.Object),
+		Scopes: make(map[syntax.Node]*types.Scope),
+	}
+
+	_, _ = types2.Check(filename, ast, conf, info)
+
+	for _, e := range typeErrs {
+		fmt.Fprintln(os.Stderr, e)
+	}
+	if len(typeErrs) > 0 {
+		return 1
+	}
+
+	// Build SSA.
+	funcs := ssa.BuildFile(ast, info, types.DefaultSizes)
+
+	// Print SSA functions.
+	for i, fn := range funcs {
+		if *dumpFunc != "" && fn.Name != *dumpFunc {
+			continue
+		}
+		if *ssaVerify {
+			if err := ssa.Verify(fn); err != nil {
+				fmt.Fprintf(os.Stderr, "SSA verification failed for %s:\n%v\n", fn.Name, err)
+				return 1
+			}
+		}
+		if i > 0 {
+			fmt.Println()
+		}
+		ssa.Print(fn)
+	}
+
 	return 0
 }
