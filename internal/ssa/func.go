@@ -78,6 +78,46 @@ func (f *Func) NewValuePos(b *Block, op Op, typ types.Type, pos syntax.Pos, args
 // NumBlocks returns the number of blocks in the function.
 func (f *Func) NumBlocks() int { return len(f.Blocks) }
 
+// NewValueAtFront creates a new Value and prepends it to the given block's Values.
+// This is used for inserting phi nodes at the beginning of blocks.
+func (f *Func) NewValueAtFront(b *Block, op Op, typ types.Type, args ...*Value) *Value {
+	v := &Value{
+		ID:    f.nextValueID,
+		Op:    op,
+		Type:  typ,
+		Block: b,
+	}
+	f.nextValueID++
+	for _, arg := range args {
+		v.AddArg(arg)
+	}
+	b.Values = append(b.Values, nil)
+	copy(b.Values[1:], b.Values)
+	b.Values[0] = v
+	return v
+}
+
+// ReplaceUses replaces every reference to old with new across all values
+// and block controls in the function, adjusting use counts.
+func (f *Func) ReplaceUses(old, new *Value) {
+	for _, b := range f.Blocks {
+		for _, v := range b.Values {
+			for i, arg := range v.Args {
+				if arg == old {
+					v.ReplaceArg(i, new)
+				}
+			}
+		}
+		for i, c := range b.Controls {
+			if c == old {
+				old.Uses--
+				b.Controls[i] = new
+				new.Uses++
+			}
+		}
+	}
+}
+
 // NumValues returns the total number of values across all blocks.
 func (f *Func) NumValues() int {
 	n := 0

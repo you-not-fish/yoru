@@ -179,6 +179,142 @@ func containsBlock(bs []*Block, b *Block) bool {
 	return false
 }
 
+// VerifyDom checks dominance properties of an SSA function.
+// ComputeDom must have been called before this.
+// It calls Verify first, then checks dominance invariants.
+func VerifyDom(f *Func) error {
+	if err := Verify(f); err != nil {
+		return err
+	}
+
+	var errs []string
+	add := func(format string, args ...interface{}) {
+		errs = append(errs, fmt.Sprintf(format, args...))
+	}
+
+	// Build reachability set.
+	reachable := make(map[*Block]bool)
+	var walk func(b *Block)
+	walk = func(b *Block) {
+		if reachable[b] {
+			return
+		}
+		reachable[b] = true
+		for _, s := range b.Succs {
+			walk(s)
+		}
+	}
+	walk(f.Entry)
+
+	// 1. Entry Idom must be nil.
+	if f.Entry.Idom != nil {
+		add("func %s: entry %s has non-nil Idom %s", f.Name, f.Entry, f.Entry.Idom)
+	}
+
+	// 2. All reachable non-entry blocks must have non-nil Idom != self.
+	for _, b := range f.Blocks {
+		if !reachable[b] || b == f.Entry {
+			continue
+		}
+		if b.Idom == nil {
+			add("func %s, %s: reachable block has nil Idom", f.Name, b)
+		} else if b.Idom == b {
+			add("func %s, %s: block is its own Idom", f.Name, b)
+		}
+	}
+
+	// Build value-to-index maps for same-block ordering checks.
+	valIdx := make(map[*Value]int)
+	for _, b := range f.Blocks {
+		for i, v := range b.Values {
+			valIdx[v] = i
+		}
+	}
+
+	// dominates returns true if a dominates b (a is on the path from b to the entry
+	// via Idom chain, or a == b).
+	dominates := func(a, b *Block) bool {
+		for b != nil {
+			if b == a {
+				return true
+			}
+			b = b.Idom
+		}
+		return false
+	}
+
+	// 3. For non-phi values: each arg's block must dominate the use block
+	// (or if same block, arg must appear before use).
+	for _, b := range f.Blocks {
+		if !reachable[b] {
+			continue
+		}
+		for _, v := range b.Values {
+			if v.Op == OpPhi {
+				continue
+			}
+			for i, arg := range v.Args {
+				if arg == nil {
+					continue
+				}
+				defBlock := arg.Block
+				if defBlock == b {
+					// Same block: arg must appear before use.
+					if valIdx[arg] >= valIdx[v] {
+						add("func %s, %s, %s: arg[%d] %s defined at index %d, used at index %d (same block)",
+							f.Name, b, v, i, arg, valIdx[arg], valIdx[v])
+					}
+				} else if !dominates(defBlock, b) {
+					add("func %s, %s, %s: arg[%d] %s defined in %s which does not dominate %s",
+						f.Name, b, v, i, arg, defBlock, b)
+				}
+			}
+		}
+	}
+
+	// 4. For phi values: each arg[i]'s block must dominate Preds[i].
+	for _, b := range f.Blocks {
+		if !reachable[b] {
+			continue
+		}
+		for _, v := range b.Values {
+			if v.Op != OpPhi {
+				continue
+			}
+			for i, arg := range v.Args {
+				if arg == nil || i >= len(b.Preds) {
+					continue
+				}
+				pred := b.Preds[i]
+				defBlock := arg.Block
+				if !dominates(defBlock, pred) {
+					add("func %s, %s, %s: phi arg[%d] %s defined in %s which does not dominate pred %s",
+						f.Name, b, v, i, arg, defBlock, pred)
+				}
+			}
+		}
+	}
+
+	// 5. Control values must dominate their block.
+	for _, b := range f.Blocks {
+		if !reachable[b] {
+			continue
+		}
+		for i, c := range b.Controls {
+			if c == nil {
+				continue
+			}
+			defBlock := c.Block
+			if defBlock != b && !dominates(defBlock, b) {
+				add("func %s, %s: control[%d] %s defined in %s which does not dominate %s",
+					f.Name, b, i, c, defBlock, b)
+			}
+		}
+	}
+
+	return combineErrors(errs)
+}
+
 // combineErrors creates an error from a list of error strings, or returns nil.
 func combineErrors(errs []string) error {
 	if len(errs) == 0 {

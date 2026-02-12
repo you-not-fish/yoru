@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/you-not-fish/yoru/internal/ssa"
+	"github.com/you-not-fish/yoru/internal/ssa/passes"
 	"github.com/you-not-fish/yoru/internal/syntax"
 	"github.com/you-not-fish/yoru/internal/types"
 	"github.com/you-not-fish/yoru/internal/types2"
@@ -31,6 +32,8 @@ var (
 	trace        = flag.Bool("trace", false, "Output timing trace")
 	dumpFunc     = flag.String("dump-func", "", "Only dump specific function")
 	ssaVerify    = flag.Bool("ssa-verify", false, "Verify SSA after each pass")
+	dumpBefore   = flag.String("dump-before", "", "Dump SSA before pass (name or \"*\")")
+	dumpAfter    = flag.String("dump-after", "", "Dump SSA after pass (name or \"*\")")
 	gcStats      = flag.Bool("gc-stats", false, "Print GC statistics")
 	gcVerbose    = flag.Bool("gc-verbose", false, "Verbose GC output")
 	gcStress     = flag.Bool("gc-stress", false, "Trigger GC on every allocation")
@@ -765,16 +768,36 @@ func runEmitSSA(filename string) int {
 	// Build SSA.
 	funcs := ssa.BuildFile(ast, info, types.DefaultSizes)
 
+	// Define pass pipeline.
+	pipeline := []passes.Pass{
+		{Name: "mem2reg", Fn: passes.Mem2Reg},
+	}
+	passCfg := passes.Config{
+		DumpBefore: *dumpBefore,
+		DumpAfter:  *dumpAfter,
+		Verify:     *ssaVerify,
+		DumpFunc:   *dumpFunc,
+	}
+
+	// Run pass pipeline on each function.
+	for _, fn := range funcs {
+		if *ssaVerify {
+			if err := ssa.Verify(fn); err != nil {
+				fmt.Fprintf(os.Stderr, "SSA verification failed for %s (before passes):\n%v\n", fn.Name, err)
+				return 1
+			}
+		}
+		ssa.ComputeDom(fn)
+		if err := passes.Run(fn, pipeline, passCfg); err != nil {
+			fmt.Fprintf(os.Stderr, "pass pipeline failed for %s:\n%v\n", fn.Name, err)
+			return 1
+		}
+	}
+
 	// Print SSA functions.
 	for i, fn := range funcs {
 		if *dumpFunc != "" && fn.Name != *dumpFunc {
 			continue
-		}
-		if *ssaVerify {
-			if err := ssa.Verify(fn); err != nil {
-				fmt.Fprintf(os.Stderr, "SSA verification failed for %s:\n%v\n", fn.Name, err)
-				return 1
-			}
 		}
 		if i > 0 {
 			fmt.Println()
