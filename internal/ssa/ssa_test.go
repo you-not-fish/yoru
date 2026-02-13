@@ -382,7 +382,7 @@ func TestOpIsPure(t *testing.T) {
 }
 
 func TestOpIsVoid(t *testing.T) {
-	voidOps := []Op{OpStore, OpZero, OpPrintln, OpPanic}
+	voidOps := []Op{OpStore, OpZero, OpPrintln, OpPanic, OpNilCheck}
 	for _, op := range voidOps {
 		if !op.IsVoid() {
 			t.Errorf("Op %s should be void", op)
@@ -391,7 +391,7 @@ func TestOpIsVoid(t *testing.T) {
 
 	nonVoidOps := []Op{
 		OpConst64, OpAdd64, OpLoad, OpAlloca, OpStaticCall,
-		OpPhi, OpArg, OpNilCheck, OpNewAlloc,
+		OpPhi, OpArg, OpNewAlloc,
 	}
 	for _, op := range nonVoidOps {
 		if op.IsVoid() {

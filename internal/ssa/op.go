@@ -190,8 +190,8 @@ var opInfoTable = [opCount]OpInfo{
 	OpPrintln: {Name: "Println", IsVoid: true},
 	OpPanic:   {Name: "Panic", IsVoid: true},
 
-	// Nil check — NOT pure (may panic)
-	OpNilCheck: {Name: "NilCheck"},
+	// Nil check — NOT pure (may panic), void (no result value)
+	OpNilCheck: {Name: "NilCheck", IsVoid: true},
 
 	// String — pure
 	OpStringLen: {Name: "StringLen", IsPure: true},

@@ -1,0 +1,54 @@
+package main
+
+type Rectangle struct {
+	width int
+	height int
+}
+
+func (r Rectangle) Area() int {
+	return r.width * r.height
+}
+
+func sumTo(n int) int {
+	var sum int = 0
+	var i int = 1
+	for i <= n {
+		sum = sum + i
+		i = i + 1
+	}
+	return sum
+}
+
+func main() {
+	var r Rectangle
+	r.width = 6
+	r.height = 7
+	println(r.Area())
+
+	var arr [5]int
+	arr[0] = 10
+	arr[1] = 20
+	arr[2] = 30
+	arr[3] = 40
+	arr[4] = 50
+	var sum int = 0
+	var i int = 0
+	for i < 5 {
+		sum = sum + arr[i]
+		i = i + 1
+	}
+	println(sum)
+
+	var p ref Rectangle = new(Rectangle)
+	p.width = 100
+	p.height = 200
+	println(p.Area())
+
+	if r.Area() > 40 {
+		println(1)
+	} else {
+		println(0)
+	}
+
+	println(sumTo(10))
+}

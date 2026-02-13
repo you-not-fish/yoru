@@ -185,6 +185,9 @@ func (b *builder) unaryExpr(e *syntax.Operation) *Value {
 		x := b.expr(e.X)
 		// Determine the element type.
 		xTyp := b.exprType(e.X)
+		if isRef(xTyp) {
+			b.nilCheck(x)
+		}
 		elemTyp := derefType(xTyp)
 		return b.fn.NewValue(b.b, OpLoad, elemTyp, x)
 
@@ -403,8 +406,7 @@ func (b *builder) methodCallExpr(e *syntax.CallExpr, sel *syntax.SelectorExpr) *
 	// Evaluate receiver.
 	recv := b.expr(sel.X)
 
-	// Auto-address: if the method has a pointer receiver but we have a value,
-	// take the address.
+	// Auto-address/auto-dereference: adjust receiver type to match method signature.
 	if sig.Recv() != nil {
 		recvParamType := sig.Recv().Type()
 		recvExprType := b.exprType(sel.X)
@@ -412,6 +414,15 @@ func (b *builder) methodCallExpr(e *syntax.CallExpr, sel *syntax.SelectorExpr) *
 			// Need to take address of receiver.
 			ptr := b.addr(sel.X)
 			recv = ptr
+		} else if !isPointerOrRef(recvParamType) && isPointerOrRef(recvExprType) {
+			// Auto-dereference: pointer/ref → value.
+			if isRef(recvExprType) {
+				b.nilCheck(recv)
+			}
+			recv = b.fn.NewValue(b.b, OpLoad, recvParamType, recv)
+		} else if isRef(recvExprType) {
+			// Ref receiver passed to ref/pointer receiver method — nil check.
+			b.nilCheck(recv)
 		}
 	}
 
@@ -500,6 +511,9 @@ func (b *builder) selectorExpr(e *syntax.SelectorExpr) *Value {
 	if isPointerOrRef(xTyp) {
 		// X is a pointer/ref — evaluate it as a pointer.
 		basePtr = b.expr(e.X)
+		if isRef(xTyp) {
+			b.nilCheck(basePtr)
+		}
 	} else {
 		// X is a struct value — take its address.
 		basePtr = b.addr(e.X)
@@ -532,6 +546,7 @@ func (b *builder) indexExpr(e *syntax.IndexExpr) *Value {
 		if arr, ok := t.Elem().Underlying().(*types.Array); ok {
 			elemType = arr.Elem()
 			basePtr = b.expr(e.X)
+			b.nilCheck(basePtr)
 		} else {
 			panic("ssa.indexExpr: ref to non-array")
 		}
@@ -639,6 +654,9 @@ func (b *builder) addr(e syntax.Expr) *Value {
 		var basePtr *Value
 		if isPointerOrRef(xTyp) {
 			basePtr = b.expr(e.X)
+			if isRef(xTyp) {
+				b.nilCheck(basePtr)
+			}
 		} else {
 			basePtr = b.addr(e.X)
 		}
@@ -666,6 +684,7 @@ func (b *builder) addr(e syntax.Expr) *Value {
 			if arr, ok := t.Elem().Underlying().(*types.Array); ok {
 				elemType = arr.Elem()
 				basePtr = b.expr(e.X)
+				b.nilCheck(basePtr)
 			}
 		}
 
@@ -723,6 +742,17 @@ func (b *builder) resolveField(typ types.Type, name string) (*types.Struct, int)
 		}
 	}
 	return nil, -1
+}
+
+// nilCheck inserts an OpNilCheck for a ref T pointer before dereference.
+func (b *builder) nilCheck(ptr *Value) {
+	b.fn.NewValue(b.b, OpNilCheck, nil, ptr)
+}
+
+// isRef returns true if t is a ref T type.
+func isRef(t types.Type) bool {
+	_, ok := t.Underlying().(*types.Ref)
+	return ok
 }
 
 // Helper type predicates.

@@ -1,0 +1,17 @@
+package main
+
+type Rectangle struct {
+	width int
+	height int
+}
+
+func (r Rectangle) Area() int {
+	return r.width * r.height
+}
+
+func main() {
+	var r Rectangle
+	r.width = 5
+	r.height = 3
+	println(r.Area())
+}

@@ -1,0 +1,15 @@
+package main
+
+type Point struct {
+	x int
+	y int
+}
+
+func main() {
+	var p Point = Point{x: 1, y: 2}
+	println(p.x)
+	println(p.y)
+	var q Point = Point{3, 4}
+	println(q.x)
+	println(q.y)
+}

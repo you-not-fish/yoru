@@ -148,6 +148,14 @@ func (g *generator) collectStrings(funcs []*ssa.Func) {
 				if v.Op == ssa.OpPrintln && len(v.Args) > 1 {
 					g.stringIndex(" ")
 				}
+				// OpNilCheck uses "nil pointer dereference" panic string.
+				if v.Op == ssa.OpNilCheck {
+					g.stringIndex("nil pointer dereference")
+				}
+				// OpPanic with no args uses "panic" string.
+				if v.Op == ssa.OpPanic && len(v.Args) == 0 {
+					g.stringIndex("panic")
+				}
 			}
 		}
 	}

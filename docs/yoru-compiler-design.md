@@ -658,23 +658,28 @@ Block 类型：BlockIf（新增）
 ```
 目标：struct、array、new(T)、方法调用 — 完成 Phase 5 全部范围。
 
-SSA Ops（新增 7 个，总计 43 个）：
-- 内存：OpAlloca, OpLoad, OpStore, OpZero
-- Struct/Array：OpStructFieldPtr, OpArrayIndexPtr
-- 地址：OpAddr
-- 堆分配：OpNewAlloc
-- Nil 检查：OpNilCheck
-- 字符串：OpStringLen, OpStringPtr
-- 调用：OpCall（间接调用）
+SSA Ops：Phase 4B/5A/5B 已全部实现（OpAlloca, OpLoad, OpStore, OpZero,
+OpStructFieldPtr, OpArrayIndexPtr, OpAddr, OpNewAlloc, OpNilCheck,
+OpStringLen, OpStringPtr）。Codegen (lower.go) 也已完成。
 
-基础设施：TypeDesc 生成、命名 struct 类型、GEP 模式、llvm.memset、rt_bounds_check
+本阶段主要任务：
+1. SSA builder 补全：
+   - ref T 解引用时插入 OpNilCheck（selectorExpr, indexExpr, unaryExpr, addr, methodCallExpr）
+   - 方法调用自动解引用：value receiver + *T/ref T caller → 插入 OpLoad
+2. Codegen 修复：
+   - collectStrings() 预扫描 OpNilCheck/OpPanic 使用的字符串常量
+3. TypeDesc 生成推迟到 Phase 6/7（当前 new(T) 传 null TypeDesc，无 GC 时足够）
+4. E2E 测试覆盖全部聚合类型特性
 
-验收：
-- [ ] struct 字段读写
-- [ ] new(T) 分配成功
-- [ ] 数组索引
-- [ ] 方法调用
-- [ ] 完整示例程序
+验收（8 个 E2E 测试）：
+- [ ] struct_field：struct 字段读写 + println
+- [ ] struct_literal：composite literal（keyed + positional）
+- [ ] array_index：数组声明、赋值、循环求和
+- [ ] pointer_arg：函数接收 *[N]int 参数
+- [ ] ref_heap：new(T) 分配 + ref T 字段读写 + OpNilCheck
+- [ ] method_value：value receiver 方法调用
+- [ ] method_pointer：pointer receiver 方法调用 + 自动取地址
+- [ ] full_example：完整示例（struct + method + array + ref + if/else）
 ```
 
 ### Phase 6：接入 shadow-stack roots（第 24-27 周）

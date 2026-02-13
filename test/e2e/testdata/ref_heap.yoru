@@ -1,0 +1,15 @@
+package main
+
+type Point struct {
+	x int
+	y int
+}
+
+func main() {
+	var p ref Point = new(Point)
+	p.x = 20
+	p.y = 30
+	println(p.x)
+	println(p.y)
+	println(p.x + p.y)
+}
