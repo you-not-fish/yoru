@@ -1,0 +1,10 @@
+package main
+
+func main() {
+    println(10 + 3)
+    println(10 - 3)
+    println(10 * 3)
+    println(10 / 3)
+    println(10 % 3)
+    println(-42)
+}

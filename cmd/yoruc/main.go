@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/you-not-fish/yoru/internal/codegen"
 	"github.com/you-not-fish/yoru/internal/ssa"
 	"github.com/you-not-fish/yoru/internal/ssa/passes"
 	"github.com/you-not-fish/yoru/internal/syntax"
@@ -94,6 +95,11 @@ func main() {
 	// Handle -emit-ssa
 	if *emitSSA {
 		os.Exit(runEmitSSA(filename))
+	}
+
+	// Handle -emit-ll
+	if *emitLL {
+		os.Exit(runEmitLL(filename))
 	}
 
 	// TODO: Implement rest of compilation pipeline
@@ -803,6 +809,102 @@ func runEmitSSA(filename string) int {
 			fmt.Println()
 		}
 		ssa.Print(fn)
+	}
+
+	return 0
+}
+
+// runEmitLL parses, type-checks, builds SSA, and outputs LLVM IR.
+func runEmitLL(filename string) int {
+	f, err := os.Open(filename)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		return 1
+	}
+	defer f.Close()
+
+	var parseErrs []string
+	parseErrh := func(pos syntax.Pos, msg string) {
+		parseErrs = append(parseErrs, fmt.Sprintf("%s: %s", pos, msg))
+	}
+
+	p := syntax.NewParser(filename, f, parseErrh)
+	if *noASI {
+		p.SetASIEnabled(false)
+	}
+	ast := p.Parse()
+
+	for _, e := range parseErrs {
+		fmt.Fprintln(os.Stderr, e)
+	}
+	if len(parseErrs) > 0 {
+		return 1
+	}
+
+	// Type check.
+	var typeErrs []string
+	typeErrh := func(pos syntax.Pos, msg string) {
+		typeErrs = append(typeErrs, fmt.Sprintf("%s: %s", pos, msg))
+	}
+
+	conf := &types2.Config{
+		Error: typeErrh,
+		Sizes: types.DefaultSizes,
+	}
+	info := &types2.Info{
+		Types:  make(map[syntax.Expr]types2.TypeAndValue),
+		Defs:   make(map[*syntax.Name]types.Object),
+		Uses:   make(map[*syntax.Name]types.Object),
+		Scopes: make(map[syntax.Node]*types.Scope),
+	}
+
+	_, _ = types2.Check(filename, ast, conf, info)
+
+	for _, e := range typeErrs {
+		fmt.Fprintln(os.Stderr, e)
+	}
+	if len(typeErrs) > 0 {
+		return 1
+	}
+
+	// Build SSA.
+	funcs := ssa.BuildFile(ast, info, types.DefaultSizes)
+
+	// Define pass pipeline.
+	pipeline := []passes.Pass{
+		{Name: "mem2reg", Fn: passes.Mem2Reg},
+	}
+	passCfg := passes.Config{
+		DumpBefore: *dumpBefore,
+		DumpAfter:  *dumpAfter,
+		Verify:     *ssaVerify,
+		DumpFunc:   *dumpFunc,
+	}
+
+	// Run pass pipeline on each function.
+	for _, fn := range funcs {
+		ssa.ComputeDom(fn)
+		if err := passes.Run(fn, pipeline, passCfg); err != nil {
+			fmt.Fprintf(os.Stderr, "pass pipeline failed for %s:\n%v\n", fn.Name, err)
+			return 1
+		}
+	}
+
+	// Generate LLVM IR.
+	w := os.Stdout
+	if *output != "" {
+		outFile, err := os.Create(*output)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			return 1
+		}
+		defer outFile.Close()
+		w = outFile
+	}
+
+	if err := codegen.Generate(w, funcs, types.DefaultSizes); err != nil {
+		fmt.Fprintf(os.Stderr, "codegen error: %v\n", err)
+		return 1
 	}
 
 	return 0

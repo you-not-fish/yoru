@@ -591,38 +591,90 @@ yoru/
 参考：Go 源码 cmd/compile/internal/ssa/
 ```
 
-### Phase 5：LLVM IR Codegen（第 20-23 周）
+### Phase 5：LLVM IR Codegen（第 20-27 周）
 
 > **注意**：此阶段先不含 GC，但 `new(T)` 仍走 `rt_alloc(size, typedesc)`（runtime 只做 malloc 不 collect）。
 > 这样 Phase 6/7 不需要改动分配路径的大结构，只需加 roots + GC。
 
-```
-任务：
-- [ ] SSA → LLVM IR：类型映射、基本块、phi、算术、cmp、branch、call、return
-- [ ] string 先只支持字面量：降成全局常量 + {ptr,len}
-- [ ] new(T) 走 rt_alloc(size, typedesc)：先只 malloc，不 collect
-- [ ] runtime（C）提供：rt_alloc/rt_print_i64/rt_print_str/rt_panic
-- [ ] 构建脚本：yoruc -emit-ll + clang 一键产物
+> **关键设计决策**：直接生成文本 LLVM IR，不使用 `llir/llvm` 库。
+> 理由：教育价值（理解每条指令）、零依赖、完全控制格式、与 `test/runtime_test.ll` 一致、便于调试。
+> 使用 opaque pointers (`ptr`)，遵循 LLVM 15+。Bool 在 SSA 流中为 `i1`，仅在 runtime 函数边界用 `i8`（zext/trunc）。
 
-可测试/可观测：
-- [ ] 每个 e2e 测试：
-    - 生成 .ll
-    - opt -verify（或 llvm-as）验证
-    - clang 链接并运行
-- [ ] `-emit-ll` 输出中带注释（每条 SSA value 的来源）
+#### Phase 5A：最小可执行程序（常量 + 算术 + Print）
+
+```
+目标：第一个 Yoru 程序编译、链接、运行。println(42) → 输出 42。
+
+SSA Ops（18 个）：
+- 常量：OpConst64, OpConstFloat, OpConstBool, OpConstString, OpConstNil
+- 整数算术：OpAdd64, OpSub64, OpMul64, OpDiv64, OpMod64, OpNeg64
+- 浮点算术：OpAddF64, OpSubF64, OpMulF64, OpDivF64, OpNegF64
+- 内建：OpPrintln, OpPanic
+
+Block 类型：BlockPlain, BlockReturn, BlockExit
+
+基础设施：
+- [ ] internal/codegen/ 包：文本 IR 发射器
+- [ ] 类型映射（types.Type → LLVM 类型字符串）
+- [ ] 模块头部（target triple, data layout from rtabi）
+- [ ] runtime 函数声明（from rtabi.RuntimeFunctions()）
+- [ ] 字符串全局常量（OpConstString）
+- [ ] CLI：yoruc -emit-ll 标志
+- [ ] E2E 测试框架
 
 验收：
-- [ ] 端到端用例：
-    - print_i64(3)
-    - fibonacci(10)=55
-    - struct 字段读写
-    - new(T) 分配成功
+- [ ] println(42) → 输出 "42"
+- [ ] println("Hello, Yoru!") → 输出 "Hello, Yoru!"
+- [ ] println(1+2*3) → 输出 "7"
+- [ ] println(3.14) → 输出 "3.14"
+```
 
-使用 github.com/llir/llvm：
-- ir.Module 用于程序
-- ir.Func 用于函数
-- ir.Block 用于基本块
-- ir.Inst* 用于指令
+#### Phase 5B：控制流 + 函数
+
+```
+目标：Fibonacci 里程碑 — 带参数的函数、if/else、for 循环、递归调用。
+
+SSA Ops（新增 18 个，累计 36 个）：
+- 整数比较：OpEq64, OpNeq64, OpLt64, OpLeq64, OpGt64, OpGeq64
+- 浮点比较：OpEqF64..OpGeqF64
+- 指针比较：OpEqPtr, OpNeqPtr
+- 布尔：OpNot, OpAndBool, OpOrBool
+- 转换：OpIntToFloat, OpFloatToInt
+- SSA：OpPhi, OpCopy, OpArg
+- 调用：OpStaticCall
+
+Block 类型：BlockIf（新增）
+
+验收：
+- [ ] fibonacci(10) = 55
+- [ ] if/else 分支
+- [ ] for 循环
+- [ ] 多函数调用
+- [ ] 布尔打印
+```
+
+#### Phase 5C：内存 + 聚合类型 + 堆分配
+
+```
+目标：struct、array、new(T)、方法调用 — 完成 Phase 5 全部范围。
+
+SSA Ops（新增 7 个，总计 43 个）：
+- 内存：OpAlloca, OpLoad, OpStore, OpZero
+- Struct/Array：OpStructFieldPtr, OpArrayIndexPtr
+- 地址：OpAddr
+- 堆分配：OpNewAlloc
+- Nil 检查：OpNilCheck
+- 字符串：OpStringLen, OpStringPtr
+- 调用：OpCall（间接调用）
+
+基础设施：TypeDesc 生成、命名 struct 类型、GEP 模式、llvm.memset、rt_bounds_check
+
+验收：
+- [ ] struct 字段读写
+- [ ] new(T) 分配成功
+- [ ] 数组索引
+- [ ] 方法调用
+- [ ] 完整示例程序
 ```
 
 ### Phase 6：接入 shadow-stack roots（第 24-27 周）
@@ -1312,11 +1364,21 @@ clang foo.ll runtime/runtime.c -fsanitize=address,undefined -g -o foo
 - [ ] -dump-func 支持只 dump 某函数
 - [ ] fib/循环/函数调用能生成 SSA
 
-### Phase 5：代码生成
+### Phase 5A：最小可执行程序
 - [ ] yoruc -emit-ll 输出合法 LLVM IR
-- [ ] opt -verify 通过
-- [ ] clang 能编译链接
-- [ ] 端到端测试：print_i64(1+2) → 输出 3, fibonacci(10) → 输出 55
+- [ ] println(42) → 输出 "42"
+- [ ] println("Hello, Yoru!") → 输出 "Hello, Yoru!"
+- [ ] println(1+2*3) → 输出 "7"
+- [ ] E2E 测试框架建立
+
+### Phase 5B：控制流 + 函数
+- [ ] fibonacci(10) = 55
+- [ ] if/else、for 循环
+- [ ] 多函数调用
+
+### Phase 5C：内存 + 聚合类型
+- [ ] struct 字段读写、new(T) 分配
+- [ ] 数组索引、方法调用
 
 ### Phase 6：GC Roots
 - [ ] llvm.gcroot 在 entry block

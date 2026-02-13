@@ -1,0 +1,5 @@
+package main
+
+func main() {
+    println(42, "hello", true, 3.14)
+}

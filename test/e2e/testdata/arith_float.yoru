@@ -1,0 +1,8 @@
+package main
+
+func main() {
+    println(1.5 + 2.5)
+    println(10.0 - 3.0)
+    println(2.0 * 3.5)
+    println(7.0 / 2.0)
+}

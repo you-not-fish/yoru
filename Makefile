@@ -7,7 +7,7 @@
 #   make doctor   - Check toolchain
 #   make clean    - Remove build artifacts
 
-.PHONY: all build test smoke layout-test doctor clean deps help
+.PHONY: all build test e2e smoke layout-test doctor clean deps help
 
 # Configuration
 GO := go
@@ -28,13 +28,17 @@ all: build
 # Build compiler
 build: $(YORUC)
 
-$(YORUC): cmd/yoruc/main.go internal/rtabi/*.go
+$(YORUC): cmd/yoruc/main.go internal/rtabi/*.go internal/codegen/*.go
 	@mkdir -p $(BUILD_DIR)
 	$(GO) build $(GOFLAGS) -o $@ ./cmd/yoruc
 
 # Run all Go tests
 test: build
 	$(GO) test ./...
+
+# E2E tests: compile .yoru → .ll → binary, compare output against golden files
+e2e: build
+	$(GO) test ./test/e2e/ -v
 
 # Smoke test: verify runtime linkage
 smoke: build
@@ -99,6 +103,7 @@ help:
 	@echo "  all             Build everything (default)"
 	@echo "  build           Build the compiler"
 	@echo "  test            Run Go tests"
+	@echo "  e2e             Run end-to-end codegen tests"
 	@echo "  smoke           Run smoke test (runtime linkage)"
 	@echo "  smoke-gc-verbose Run smoke test with GC tracing"
 	@echo "  layout-test     Run layout consistency test"

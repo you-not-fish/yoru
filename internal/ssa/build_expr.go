@@ -65,6 +65,14 @@ func (b *builder) constValue(e syntax.Expr, tv types2.TypeAndValue) *Value {
 		return v
 	}
 
+	// Determine the target kind from the type.
+	// go/constant may represent an integer-valued result as constant.Float
+	// (e.g., 10/3 as a rational). We must respect the target type.
+	isTargetInt := false
+	if basic, ok := typ.Underlying().(*types.Basic); ok {
+		isTargetInt = basic.Kind() == types.Int || basic.Kind() == types.UntypedInt
+	}
+
 	switch val.Kind() {
 	case constant.Int:
 		n, _ := constant.Int64Val(val)
@@ -73,6 +81,14 @@ func (b *builder) constValue(e syntax.Expr, tv types2.TypeAndValue) *Value {
 		return v
 
 	case constant.Float:
+		if isTargetInt {
+			// go/constant represents integer division results (e.g., 10/3)
+			// as exact rationals with kind=Float. Truncate to int.
+			f, _ := constant.Float64Val(val)
+			v := b.fn.NewValue(b.b, OpConst64, typ)
+			v.AuxInt = int64(f)
+			return v
+		}
 		f, _ := constant.Float64Val(val)
 		v := b.fn.NewValue(b.b, OpConstFloat, typ)
 		v.AuxFloat = f
