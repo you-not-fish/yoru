@@ -31,7 +31,8 @@ type Parser struct {
 	abort  bool  // set to true when error limit reached
 
 	// Context tracking
-	fnest int // function nesting depth (0 = top-level)
+	fnest   int  // function nesting depth (0 = top-level)
+	noBrace bool // suppress Name{ composite literal in if/for conditions
 }
 
 // NewParser creates a new Parser for the given source.
@@ -569,7 +570,10 @@ func (p *Parser) ifStmt() Stmt {
 	s.pos = p.pos
 
 	p.want(_If)
+	old := p.noBrace
+	p.noBrace = true
 	s.Cond = p.expr()
+	p.noBrace = old
 	s.Then = p.blockStmt()
 
 	if p.got(_Else) {
@@ -594,7 +598,10 @@ func (p *Parser) forStmt() Stmt {
 	if p.tok == _Lbrace {
 		p.syntaxError("expected for condition")
 	} else {
+		old := p.noBrace
+		p.noBrace = true
 		s.Cond = p.expr()
+		p.noBrace = old
 	}
 
 	s.Body = p.blockStmt()
@@ -724,7 +731,8 @@ func (p *Parser) operand() Expr {
 		n.pos = p.pos
 		p.next()
 		// Check for composite literal: T{...}
-		if p.tok == _Lbrace {
+		// Suppressed in if/for conditions where { starts a block body.
+		if !p.noBrace && p.tok == _Lbrace {
 			return p.compositeLit(n)
 		}
 		return n

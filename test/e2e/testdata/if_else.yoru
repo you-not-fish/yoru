@@ -1,0 +1,24 @@
+package main
+
+func main() {
+	var x int = 10
+	if x > 5 {
+		println("greater")
+	} else {
+		println("smaller")
+	}
+
+	if x == 10 {
+		println("ten")
+	}
+
+	if x < 0 {
+		println("negative")
+	} else {
+		if x < 20 {
+			println("small positive")
+		} else {
+			println("large positive")
+		}
+	}
+}

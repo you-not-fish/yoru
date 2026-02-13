@@ -1,0 +1,14 @@
+package main
+
+func main() {
+	println(1 < 2)
+	println(3 > 5)
+	println(10 == 10)
+	println(10 != 10)
+	println(!true)
+	println(!false)
+	println(true && true)
+	println(true && false)
+	println(false || true)
+	println(false || false)
+}

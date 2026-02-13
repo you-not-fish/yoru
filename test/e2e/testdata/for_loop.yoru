@@ -1,0 +1,12 @@
+package main
+
+func main() {
+	var sum int = 0
+	var i int = 1
+	for i <= 10 {
+		sum = sum + i
+		i = i + 1
+	}
+	println(sum)
+	println(i)
+}
